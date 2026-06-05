@@ -1,9 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { Message } from '@/lib/types'
+import { Message, ArtistStyle } from '@/lib/types'
+import { MOCK_ARTISTS } from '@/lib/mock-data'
+import { formatArtistRosterContext, formatRelevantArtists } from '@/lib/artist-context'
 
 const client = new Anthropic()
 
-const SYSTEM_PROMPT = `You are TatzAI, a sophisticated tattoo concierge AI for an elite tattoo matching platform. Your role is to help clients:
+function buildSystemPrompt(conversationHints: ConversationHints): string {
+  // Build artist context tuned to what we know about the client so far
+  const relevantArtistContext =
+    conversationHints.styles?.length || conversationHints.city
+      ? formatRelevantArtists(MOCK_ARTISTS, {
+          styles: conversationHints.styles,
+          city: conversationHints.city,
+          maxBudgetCents: conversationHints.maxBudgetCents,
+        })
+      : formatArtistRosterContext(MOCK_ARTISTS)
+
+  return `You are TatzAI, a sophisticated tattoo concierge AI for an elite tattoo matching platform. Your role is to help clients:
 
 1. REFINE their tattoo idea into a clear, detailed brief that artists can work from
 2. EDUCATE them on style, placement, sizing, and what affects pricing
@@ -11,6 +24,19 @@ const SYSTEM_PROMPT = `You are TatzAI, a sophisticated tattoo concierge AI for a
 4. DETERMINE their readiness to be matched with an artist
 
 Your personality: knowledgeable, warm, not pretentious. You speak the tattoo community's language but make it accessible. You're honest about costs and timelines.
+
+---
+
+${relevantArtistContext}
+
+---
+
+## Using Artist Context
+You know the artists on this platform — their styles, pricing floors, locations, and reputations. Use this to:
+- Give accurate budget guidance ("for a half sleeve in blackwork, you're looking at $2,500–$5,000 — we have artists in NYC starting at $250/hr who specialize in that")
+- Set realistic expectations ("fine line portraits start around $300 minimum on our platform")
+- Gently steer style choices toward what's available ("we have strong Japanese traditional artists in LA and NYC — are you open to either?")
+- Never name a specific artist as "the one" — the matching algorithm does that after brief submission. You can say "we have several artists who do this well."
 
 ## Conversation Flow
 Guide the client through these naturally (don't make it feel like a form):
@@ -55,12 +81,73 @@ Set readiness_score 0-100. If >= 70, include "BRIEF_READY" in your response.
 ## Rules
 - Never shame someone's budget. Work with what they have or educate gently.
 - If their budget is too low for their vision, be honest and offer alternatives.
-- Don't recommend specific artists (the matching algorithm does that).
+- Don't commit to specific artists — the matching engine handles that.
 - Keep responses concise and conversational. This is a mobile chat UI.
 - Use bullet points sparingly. Prefer natural prose.`
+}
+
+// Extract hints from conversation history to tune artist context
+interface ConversationHints {
+  styles?: ArtistStyle[]
+  city?: string
+  maxBudgetCents?: number
+}
+
+function extractConversationHints(messages: Message[]): ConversationHints {
+  const allText = messages.map((m) => m.content.toLowerCase()).join(' ')
+
+  const STYLE_KEYWORDS: Record<ArtistStyle, string[]> = {
+    blackwork: ['blackwork', 'black work', 'dark', 'solid black'],
+    geometric: ['geometric', 'geometry', 'mandala', 'sacred geometry'],
+    realism: ['realism', 'realistic', 'photorealistic', 'lifelike'],
+    japanese: ['japanese', 'irezumi', 'koi', 'dragon', 'samurai', 'oni'],
+    'fine-line': ['fine line', 'fineline', 'delicate', 'thin lines', 'minimal'],
+    portrait: ['portrait', 'face', 'person', 'pet', 'dog', 'cat'],
+    watercolor: ['watercolor', 'water color', 'colorful', 'vibrant', 'splash'],
+    'neo-traditional': ['neo trad', 'neo-traditional', 'neo traditional'],
+    traditional: ['traditional', 'old school', 'sailor jerry', 'americana'],
+    tribal: ['tribal', 'polynesian', 'maori', 'samoan'],
+    illustrative: ['illustrative', 'illustration', 'cartoon', 'animated'],
+    'cover-up': ['cover up', 'cover-up', 'coverup', 'hide old tattoo'],
+  }
+
+  const detectedStyles: ArtistStyle[] = []
+  for (const [style, keywords] of Object.entries(STYLE_KEYWORDS)) {
+    if (keywords.some((kw) => allText.includes(kw))) {
+      detectedStyles.push(style as ArtistStyle)
+    }
+  }
+
+  const CITY_PATTERNS = [
+    { pattern: /new york|nyc|brooklyn|manhattan/, city: 'New York' },
+    { pattern: /los angeles|la\b|hollywood|venice|dtla/, city: 'Los Angeles' },
+    { pattern: /miami|south beach|brickell/, city: 'Miami' },
+    { pattern: /chicago|chi-town|wicker park/, city: 'Chicago' },
+    { pattern: /atlanta|atl\b/, city: 'Atlanta' },
+    { pattern: /houston|htx/, city: 'Houston' },
+  ]
+
+  let city: string | undefined
+  for (const { pattern, city: c } of CITY_PATTERNS) {
+    if (pattern.test(allText)) { city = c; break }
+  }
+
+  // Rough budget detection: look for dollar amounts
+  const budgetMatch = allText.match(/\$(\d[\d,]*)\s*(?:to|-)\s*\$?(\d[\d,]*)|budget.*?\$(\d[\d,]+)|(\d[\d,]+)\s*dollars?/)
+  let maxBudgetCents: number | undefined
+  if (budgetMatch) {
+    const raw = budgetMatch[2] || budgetMatch[3] || budgetMatch[4]
+    if (raw) maxBudgetCents = parseInt(raw.replace(/,/g, '')) * 100
+  }
+
+  return { styles: detectedStyles.length ? detectedStyles : undefined, city, maxBudgetCents }
+}
 
 export async function POST(req: Request) {
   const { messages }: { messages: Message[] } = await req.json()
+
+  const hints = extractConversationHints(messages)
+  const systemPrompt = buildSystemPrompt(hints)
 
   const anthropicMessages = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -77,7 +164,7 @@ export async function POST(req: Request) {
         const response = await client.messages.create({
           model: 'claude-sonnet-4-6',
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages: anthropicMessages,
           stream: true,
         })
@@ -87,7 +174,7 @@ export async function POST(req: Request) {
             const text = event.delta.text
             fullText += text
 
-            // Stream visible text (exclude the brief JSON block)
+            // Don't stream the hidden brief JSON block
             const visibleText = text.replace(/```brief[\s\S]*?```/g, '')
             if (visibleText) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: visibleText })}\n\n`))
@@ -95,12 +182,10 @@ export async function POST(req: Request) {
           }
         }
 
-        // Check if brief is ready
         if (fullText.includes('BRIEF_READY')) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ briefReady: true })}\n\n`))
         }
 
-        // Extract and emit brief JSON if present
         const briefMatch = fullText.match(/```brief\n([\s\S]+?)\n```/)
         if (briefMatch) {
           try {
@@ -111,7 +196,7 @@ export async function POST(req: Request) {
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))
         controller.close()
-      } catch (err) {
+      } catch {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Agent error' })}\n\n`))
         controller.close()
       }
