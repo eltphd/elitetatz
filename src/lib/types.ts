@@ -3,7 +3,27 @@ export type ArtistStyle =
   | 'geometric' | 'watercolor' | 'japanese' | 'tribal'
   | 'illustrative' | 'fine-line' | 'portrait' | 'cover-up'
 
-export type MatchStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'paid'
+export type MatchStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'paid' | 'cancelled'
+
+export type ProjectStage =
+  | 'pending'       // sent to artist, awaiting response
+  | 'accepted'      // artist said yes
+  | 'deposit_paid'  // client paid deposit
+  | 'sketching'     // artist is drawing
+  | 'approval'      // client reviewing sketch
+  | 'booked'        // appointment confirmed
+  | 'completed'     // tattoo done
+  | 'rejected'      // artist declined
+
+export const PROJECT_STAGES: { key: ProjectStage; label: string }[] = [
+  { key: 'pending',      label: 'Sent' },
+  { key: 'accepted',     label: 'Accepted' },
+  { key: 'deposit_paid', label: 'Deposit' },
+  { key: 'sketching',    label: 'Sketching' },
+  { key: 'approval',     label: 'Approval' },
+  { key: 'booked',       label: 'Booked' },
+  { key: 'completed',    label: 'Done' },
+]
 
 export interface Artist {
   id: string
@@ -47,6 +67,7 @@ export interface Match {
   client_id: string
   artist_id: string
   status: MatchStatus
+  stage?: ProjectStage
   client_brief: string
   ai_summary: string
   offered_price_cents: number
@@ -86,5 +107,5 @@ export interface ClientBrief {
   timeline: string
   reference_notes: string
   location_preference: string
-  readiness_score: number // 0-100
+  readiness_score: number
 }

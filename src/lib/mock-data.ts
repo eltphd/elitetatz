@@ -147,3 +147,157 @@ export const MOCK_ARTISTS: Artist[] = [
     created_at: '2023-01-01',
   },
 ]
+
+export interface FlashDesign {
+  id: string
+  artist_id: string
+  artist: Artist
+  title: string
+  description: string
+  style: string
+  price_cents: number
+  image_url: string
+  size_inches: number
+  placement_suggestions: string[]
+  sold: boolean
+  created_at: string
+}
+
+export const MOCK_FLASH: FlashDesign[] = [
+  {
+    id: 'f1',
+    artist_id: '1',
+    artist: MOCK_ARTISTS[0],
+    title: 'Serpent & Dagger',
+    description: 'Classic blackwork serpent coiled around a ornate dagger. Bold lines, built to age.',
+    style: 'blackwork',
+    price_cents: 45000,
+    image_url: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600&q=80',
+    size_inches: 4,
+    placement_suggestions: ['forearm', 'calf', 'upper arm'],
+    sold: false,
+    created_at: '2024-01-10',
+  },
+  {
+    id: 'f2',
+    artist_id: '3',
+    artist: MOCK_ARTISTS[2],
+    title: 'Moth & Moon',
+    description: 'Delicate fine line moth with crescent moon. Ethereal and feminine.',
+    style: 'fine-line',
+    price_cents: 28000,
+    image_url: 'https://images.unsplash.com/photo-1565733293412-3e8e36e62e61?w=600&q=80',
+    size_inches: 3,
+    placement_suggestions: ['wrist', 'ankle', 'collarbone'],
+    sold: false,
+    created_at: '2024-01-12',
+  },
+  {
+    id: 'f3',
+    artist_id: '2',
+    artist: MOCK_ARTISTS[1],
+    title: 'Koi Rising',
+    description: 'Traditional Japanese koi ascending through waves. Rich in symbolism — perseverance and luck.',
+    style: 'japanese',
+    price_cents: 80000,
+    image_url: 'https://images.unsplash.com/photo-1542856391-010fb87dcfed?w=600&q=80',
+    size_inches: 6,
+    placement_suggestions: ['thigh', 'back', 'ribs'],
+    sold: false,
+    created_at: '2024-01-08',
+  },
+  {
+    id: 'f4',
+    artist_id: '5',
+    artist: MOCK_ARTISTS[4],
+    title: 'Peony Burst',
+    description: 'Watercolor peony with ink splatter. Vibrant pinks and purples, no outline.',
+    style: 'watercolor',
+    price_cents: 35000,
+    image_url: 'https://images.unsplash.com/photo-1587917560786-7d4ba7de5248?w=600&q=80',
+    size_inches: 4,
+    placement_suggestions: ['shoulder', 'hip', 'upper arm'],
+    sold: true,
+    created_at: '2024-01-05',
+  },
+  {
+    id: 'f5',
+    artist_id: '6',
+    artist: MOCK_ARTISTS[5],
+    title: 'Panther Flash',
+    description: 'Old school panther head, bold and timeless. Americana at its finest.',
+    style: 'traditional',
+    price_cents: 22000,
+    image_url: 'https://images.unsplash.com/photo-1609743522653-52354461eb27?w=600&q=80',
+    size_inches: 3,
+    placement_suggestions: ['forearm', 'calf', 'chest'],
+    sold: false,
+    created_at: '2024-01-15',
+  },
+  {
+    id: 'f6',
+    artist_id: '1',
+    artist: MOCK_ARTISTS[0],
+    title: 'Sacred Geometry Mandala',
+    description: 'Intricate geometric mandala. Precision dotwork with clean linework.',
+    style: 'geometric',
+    price_cents: 55000,
+    image_url: 'https://images.unsplash.com/photo-1590246814883-57c511e9d8ab?w=600&q=80',
+    size_inches: 5,
+    placement_suggestions: ['chest', 'back', 'thigh'],
+    sold: false,
+    created_at: '2024-01-18',
+  },
+]
+
+export interface VaultAsset {
+  id: string
+  client_id: string
+  type: 'reference' | 'sketch' | 'final' | 'inspiration'
+  url: string
+  label: string
+  match_id?: string
+  artist_name?: string
+  created_at: string
+}
+
+export const MOCK_VAULT_ASSETS: VaultAsset[] = [
+  {
+    id: 'v1',
+    client_id: 'c1',
+    type: 'reference',
+    url: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=400&q=80',
+    label: 'Reference — serpent style',
+    match_id: 'm1',
+    artist_name: 'Marco Vega',
+    created_at: '2024-01-10',
+  },
+  {
+    id: 'v2',
+    client_id: 'c1',
+    type: 'sketch',
+    url: 'https://images.unsplash.com/photo-1590246814883-57c511e9d8ab?w=400&q=80',
+    label: 'Sketch draft — approved',
+    match_id: 'm1',
+    artist_name: 'Marco Vega',
+    created_at: '2024-01-14',
+  },
+  {
+    id: 'v3',
+    client_id: 'c1',
+    type: 'inspiration',
+    url: 'https://images.unsplash.com/photo-1565733293412-3e8e36e62e61?w=400&q=80',
+    label: 'Inspiration from TatzAI chat',
+    created_at: '2024-01-08',
+  },
+  {
+    id: 'v4',
+    client_id: 'c1',
+    type: 'final',
+    url: 'https://images.unsplash.com/photo-1542856391-010fb87dcfed?w=400&q=80',
+    label: 'Final — healed photo',
+    match_id: 'm2',
+    artist_name: 'Kai Nakamura',
+    created_at: '2024-01-20',
+  },
+]
