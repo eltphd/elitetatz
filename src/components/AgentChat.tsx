@@ -3,6 +3,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
+import { useRouter } from 'next/navigation'
+
+function getSessionId() {
+  if (typeof window === 'undefined') return ''
+  let id = sessionStorage.getItem('tatzai_session')
+  if (!id) { id = crypto.randomUUID(); sessionStorage.setItem('tatzai_session', id) }
+  return id
+}
 
 const STARTER_PROMPTS = [
   "I want a sleeve but don't know where to start",
@@ -18,10 +26,13 @@ const WELCOME: Message = {
 }
 
 export function AgentChat({ mode }: { mode?: string } = {}) {
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefReady, setBriefReady] = useState(false)
+  const [briefData, setBriefData] = useState<Record<string, unknown> | null>(null)
+  const [saving, setSaving] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -71,7 +82,12 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
                   return updated
                 })
               }
-              if (data.briefReady) setBriefReady(true)
+              if (data.brief) setBriefData(data.brief)
+              if (data.briefReady) {
+                setBriefReady(true)
+                // Fire-and-forget save — don't await in stream loop
+                setTimeout(() => saveBrief([...messages, { role: 'assistant' as const, content: assistantContent, timestamp: new Date().toISOString() }], data.brief ?? briefData), 100)
+              }
             } catch {}
           }
         }
@@ -84,6 +100,29 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
       }])
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function saveBrief(allMessages: Message[], brief: Record<string, unknown> | null) {
+    if (!brief) return
+    setSaving(true)
+    try {
+      await fetch('/api/brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: allMessages, brief, mode, sessionId: getSessionId() }),
+      })
+    } catch { /* non-fatal */ } finally {
+      setSaving(false)
+    }
+  }
+
+  async function submitBrief() {
+    if (saving) return
+    if (mode === 'lacey') {
+      router.push('/matches')
+    } else {
+      router.push('/matches')
     }
   }
 
@@ -123,9 +162,13 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
             <p className="text-xs text-[#6b6b6b] mb-3">
               I've put together your tattoo brief. Ready to send it to matching artists?
             </p>
-            <button className="flex items-center justify-between w-full bg-[#c9a84c] text-black font-semibold px-4 py-3 rounded-xl text-sm">
-              <span>Find My Artist</span>
-              <ChevronRight className="w-4 h-4" />
+            <button
+              onClick={submitBrief}
+              disabled={saving}
+              className="flex items-center justify-between w-full bg-[#c9a84c] text-black font-semibold px-4 py-3 rounded-xl text-sm disabled:opacity-60"
+            >
+              <span>{saving ? 'Saving…' : mode === 'lacey' ? 'Send to Lacey' : 'Find My Artist'}</span>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
         )}
