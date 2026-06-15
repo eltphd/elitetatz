@@ -17,7 +17,7 @@ const WELCOME: Message = {
   timestamp: new Date().toISOString(),
 }
 
-export function AgentChat() {
+export function AgentChat({ mode }: { mode?: string } = {}) {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,7 +42,7 @@ export function AgentChat() {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({ messages: [...messages, userMsg], ...(mode ? { mode } : {}) }),
       })
 
       if (!res.ok) throw new Error('Agent error')

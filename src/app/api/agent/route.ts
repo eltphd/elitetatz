@@ -2,8 +2,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { Message, ArtistStyle } from '@/lib/types'
 import { MOCK_ARTISTS } from '@/lib/mock-data'
 import { formatArtistRosterContext, formatRelevantArtists } from '@/lib/artist-context'
+import { buildLaceySystemPrompt } from '@/lib/artists/lacey-rawson'
 
 const client = new Anthropic()
+
+// Set SINGLE_ARTIST_MODE=lacey in .env.local to run as RawSunArt's concierge
+const SINGLE_ARTIST_MODE = process.env.SINGLE_ARTIST_MODE
 
 function buildSystemPrompt(conversationHints: ConversationHints): string {
   // Build artist context tuned to what we know about the client so far
@@ -144,10 +148,11 @@ function extractConversationHints(messages: Message[]): ConversationHints {
 }
 
 export async function POST(req: Request) {
-  const { messages }: { messages: Message[] } = await req.json()
+  const { messages, mode }: { messages: Message[]; mode?: string } = await req.json()
 
+  const activeMode = mode || SINGLE_ARTIST_MODE
   const hints = extractConversationHints(messages)
-  const systemPrompt = buildSystemPrompt(hints)
+  const systemPrompt = activeMode === 'lacey' ? buildLaceySystemPrompt() : buildSystemPrompt(hints)
 
   const anthropicMessages = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
