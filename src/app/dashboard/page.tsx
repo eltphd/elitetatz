@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, Clock, CheckCircle, XCircle, DollarSign, MessageCircle, User } from 'lucide-react'
 import { LeadActions } from './LeadActions'
+import { ConversationViewer } from './ConversationViewer'
 
 // Lacey's dashboard — server component, reads real data
 
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
     .from('matches')
     .select(`
       id, status, client_brief, ai_summary, offered_price_cents,
-      placement, created_at, artist_response,
+      placement, created_at, artist_response, conversation_id,
       clients (id, name, email)
     `)
     .eq('artist_id', artist?.id ?? '')
@@ -169,6 +170,8 @@ function LeadCard({ match, status }: { match: any; status: 'pending' | 'active' 
       </p>
 
       {status === 'pending' && <LeadActions matchId={match.id} />}
+
+      <ConversationViewer matchId={match.id} conversationId={match.conversation_id ?? null} />
 
       {match.artist_response && (
         <div className="mt-3 pt-3 border-t border-[#2a2a2a]">

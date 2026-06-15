@@ -27,10 +27,25 @@ export function LeadActions({ matchId }: { matchId: string }) {
   }
 
   if (state === 'done') {
+    const depositUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/deposit/${matchId}`
     return (
-      <div className="flex items-center gap-2 py-2">
-        <CheckCircle className="w-4 h-4 text-green-400" />
-        <span className="text-sm text-green-400 font-medium">Accepted — client notified</span>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-green-400" />
+          <span className="text-sm text-green-400 font-medium">Accepted — client notified</span>
+        </div>
+        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3">
+          <p className="text-[10px] text-[#6b6b6b] mb-1.5">Deposit link — share if client didn&apos;t get the email</p>
+          <div className="flex items-center gap-2">
+            <code className="text-[10px] text-[#c9a84c] flex-1 truncate">{depositUrl}</code>
+            <button
+              onClick={() => navigator.clipboard.writeText(depositUrl)}
+              className="text-[10px] text-[#6b6b6b] hover:text-white shrink-0 px-2 py-1 border border-[#2a2a2a] rounded-lg transition-colors"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
