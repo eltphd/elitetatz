@@ -1,8 +1,9 @@
 // Booth Drops registry — the artist's sellable pieces, config-first.
-// ⚠️ PRICES BELOW ARE PLACEHOLDERS — edit titles/prices/kinds with the artist
-// before promoting hard. Items graduate to the `drops` table once the
-// ingestion agent (Telegram/SMS -> post) is live; the page reads this
-// registry first so the store works with zero backend configuration.
+// ⚠️ PRICES ARE PLACEHOLDERS ($45) — confirm with the artist before promoting.
+// Images are served from the artist's presence site (rawsunart.com/images/prints)
+// so this app hotlinks them; no asset duplication. Items graduate to the `drops`
+// table once the Telegram/SMS ingestion agent posts directly; the page reads
+// this registry first so the store works with zero backend configuration.
 
 export interface DropItem {
   slug: string
@@ -11,6 +12,7 @@ export interface DropItem {
   kind: 'print' | 'original' | 'pottery' | 'flash' | 'merch'
   priceCents: number
   imageUrl: string
+  boothQty: number            // physical copies at the booth this weekend
   status: 'available' | 'reserved' | 'sold'
 }
 
@@ -27,7 +29,8 @@ export interface ArtistDropsConfig {
   items: DropItem[]
 }
 
-const IMG = 'https://rawsunart.com/images/webp'
+const IMG = 'https://rawsunart.com/images/prints'
+const PRINT_PRICE = 4500 // ⚠️ placeholder — confirm with Lacey
 
 const DROPS: Record<string, ArtistDropsConfig> = {
   rawsunart: {
@@ -39,63 +42,19 @@ const DROPS: Record<string, ArtistDropsConfig> = {
     instagramHandle: '@raw.sun.art',
     siteUrl: 'https://rawsunart.com',
     intro:
-      'Prints and pieces from the studio. Claim one and Lacey emails you directly — pay when you two connect, ship anywhere.',
-    boothNote: 'At Hell City this weekend? Claimed pieces can be picked up at the booth.',
+      'Signed prints from the studio. Only 10 of each came to Hell City — after that it\'s online ordering. Claim one and Lacey emails you directly to arrange booth pickup or shipping.',
+    boothNote: 'At Hell City this weekend? Claim now, pick up at the booth — first come, first served.',
     items: [
-      {
-        slug: 'birdy-blue-print',
-        title: 'Birdy Blue',
-        description: 'Watercolor print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/birdybluewatercolor.webp`,
-        status: 'available',
-      },
-      {
-        slug: 'cardinal-print',
-        title: 'Cardinal',
-        description: 'Watercolor print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/cardinalcolor.webp`,
-        status: 'available',
-      },
-      {
-        slug: 'fall-leaves-print',
-        title: 'Fall Leaves',
-        description: 'Watercolor print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/Fallleaveswatercolor.webp`,
-        status: 'available',
-      },
-      {
-        slug: 'crystals-print',
-        title: 'Crystals',
-        description: 'Watercolor print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/crystalswatercolor.webp`,
-        status: 'available',
-      },
-      {
-        slug: 'butterflies-print',
-        title: 'Butterflies',
-        description: 'Watercolor print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/butterflysandwatercolor.webp`,
-        status: 'available',
-      },
-      {
-        slug: 'black-roses-print',
-        title: 'Black Roses',
-        description: 'Black & grey print · signed',
-        kind: 'print',
-        priceCents: 4500,
-        imageUrl: `${IMG}/blackroses.webp`,
-        status: 'available',
-      },
+      { slug: 'skull-heart', title: 'Skull Heart', description: 'Watercolor print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/skull-heart.webp`, boothQty: 10, status: 'available' },
+      { slug: 'sun', title: 'Sun', description: 'Watercolor print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/sun.webp`, boothQty: 10, status: 'available' },
+      { slug: 'cheetah', title: 'Cheetah', description: 'Watercolor print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/cheetah.webp`, boothQty: 10, status: 'available' },
+      { slug: 'compass', title: 'Compass', description: 'Ink & wash print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/compass.webp`, boothQty: 10, status: 'available' },
+      { slug: 'hot-air-balloon', title: 'Wander', description: 'Watercolor balloon print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/hot-air-balloon.webp`, boothQty: 10, status: 'available' },
+      { slug: 'purple-roses', title: 'Purple Roses', description: 'Illustrative print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/purple-roses.webp`, boothQty: 10, status: 'available' },
+      { slug: 'sunflowers', title: 'Sunflowers', description: 'Black & grey print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/sunflowers.webp`, boothQty: 10, status: 'available' },
+      { slug: 'coffin-roses', title: 'Coffin Roses', description: 'Black & grey print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/coffin-roses.webp`, boothQty: 10, status: 'available' },
+      { slug: 'cannabis-mandala', title: 'Leaf Mandala', description: 'Black & grey print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/cannabis-mandala.webp`, boothQty: 10, status: 'available' },
+      { slug: 'feather-geo', title: 'Feather Geometry', description: 'Sketch print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/feather-geo.webp`, boothQty: 10, status: 'available' },
     ],
   },
 }

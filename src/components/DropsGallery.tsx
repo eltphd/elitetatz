@@ -48,7 +48,12 @@ function ClaimCard({ artist, item }: { artist: ArtistDropsConfig; item: DropItem
           <span className="font-serif text-lg text-[#f0ebe0]">{item.title}</span>
           <span className="font-semibold text-[#c9a050]">{price}</span>
         </div>
-        <p className="mb-3 text-xs text-[#a09070]">{item.description}</p>
+        <p className="mb-2 text-xs text-[#a09070]">{item.description}</p>
+        {!sold && item.boothQty > 0 && (
+          <p className="mb-3 text-[0.68rem] font-semibold uppercase tracking-wider text-[#c9a050]">
+            ✦ Only {item.boothQty} at the booth · then online
+          </p>
+        )}
 
         {sold ? (
           <div className="rounded-full border border-[rgba(201,160,80,0.15)] py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-[#6a5f4a]">

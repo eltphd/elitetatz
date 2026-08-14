@@ -19,18 +19,34 @@ const STARTER_PROMPTS = [
   "Japanese koi — how much should I budget?",
 ]
 
+const LACEY_STARTER_PROMPTS = [
+  "A watercolor piece — I have a rough idea",
+  "Botanical / floral, first tattoo",
+  "Something abstract, open to her interpretation",
+  "How does booking and the deposit work?",
+]
+
 const WELCOME: Message = {
   role: 'assistant',
   content: `Hey! I'm EliteTatz — your personal tattoo concierge. I'm here to help you:\n\n• **Refine your idea** into something an artist can work with\n• **Figure out your budget** based on what you actually want\n• **Match you with the right artist** for your style and location\n\nWhen you're ready, I'll put together a brief and send it to the best matching artists. They'll respond with an offer — you accept, we handle everything.\n\n**What are you thinking about getting?**`,
   timestamp: new Date().toISOString(),
 }
 
+const LACEY_WELCOME: Message = {
+  role: 'assistant',
+  content: `Hey — this is the booking assistant for **Lacey Rawson** (RawSunArt). I help you shape your idea and get it in front of Lacey so she can quote it.\n\nShe's a watercolor specialist — also botanical, illustrative, fine line, and black & grey. All custom, never copied.\n\nTell me what you're thinking and roughly where on the body, and I'll take it from there. **What do you want to get?**`,
+  timestamp: new Date().toISOString(),
+}
+
 export function AgentChat({ mode }: { mode?: string } = {}) {
   const router = useRouter()
-  const [messages, setMessages] = useState<Message[]>([WELCOME])
+  const isLacey = mode === 'lacey'
+  const starterPrompts = isLacey ? LACEY_STARTER_PROMPTS : STARTER_PROMPTS
+  const [messages, setMessages] = useState<Message[]>([isLacey ? LACEY_WELCOME : WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefReady, setBriefReady] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [briefData, setBriefData] = useState<Record<string, unknown> | null>(null)
   const [saving, setSaving] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -120,7 +136,8 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
   async function submitBrief() {
     if (saving) return
     if (mode === 'lacey') {
-      router.push('/matches')
+      // Contained confirmation — never route a RawSunArt client into the marketplace.
+      setSubmitted(true)
     } else {
       router.push('/matches')
     }
@@ -153,23 +170,42 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
         )}
 
         {/* Brief ready CTA */}
-        {briefReady && (
+        {briefReady && !submitted && (
           <div className="bg-[#141414] border border-[#c9a84c]/40 rounded-2xl p-4 mx-2">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-[#c9a84c]" />
               <span className="text-sm font-semibold text-[#c9a84c]">Your brief is ready!</span>
             </div>
             <p className="text-xs text-[#6b6b6b] mb-3">
-              I've put together your tattoo brief. Ready to send it to matching artists?
+              {isLacey
+                ? "I've put together your brief. Send it to Lacey and she'll follow up by email with a quote and availability."
+                : "I've put together your tattoo brief. Ready to send it to matching artists?"}
             </p>
             <button
               onClick={submitBrief}
               disabled={saving}
               className="flex items-center justify-between w-full bg-[#c9a84c] text-black font-semibold px-4 py-3 rounded-xl text-sm disabled:opacity-60"
             >
-              <span>{saving ? 'Saving…' : mode === 'lacey' ? 'Send to Lacey' : 'Find My Artist'}</span>
+              <span>{saving ? 'Saving…' : isLacey ? 'Send to Lacey' : 'Find My Artist'}</span>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
             </button>
+          </div>
+        )}
+
+        {/* Contained confirmation for RawSunArt clients */}
+        {submitted && (
+          <div className="bg-[#141414] border border-[#c9a84c]/40 rounded-2xl p-5 mx-2 text-center">
+            <div className="mb-2 text-3xl">📨</div>
+            <p className="mb-1 text-sm font-semibold text-white">Sent to Lacey.</p>
+            <p className="mb-4 text-xs text-[#6b6b6b]">
+              She reviews inquiries personally and replies by email — usually within 48 hours — with a quote and next steps.
+            </p>
+            <a
+              href="https://rawsunart.com"
+              className="inline-block rounded-full border border-[#2a2a2a] px-5 py-2.5 text-xs font-semibold text-[#c9a84c] hover:bg-[#1e1e1e]"
+            >
+              ← Back to rawsunart.com
+            </a>
           </div>
         )}
 
@@ -179,7 +215,7 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
       {/* Starter prompts (only at start) */}
       {messages.length === 1 && (
         <div className="px-4 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
-          {STARTER_PROMPTS.map((p) => (
+          {starterPrompts.map((p) => (
             <button
               key={p}
               onClick={() => send(p)}
