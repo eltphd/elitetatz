@@ -76,6 +76,7 @@ export async function POST(req: Request) {
 
   const price = `$${(item.priceCents / 100).toFixed(0)}`
   const sent = await sendEmail({
+    from: artist.fromEmail,
     to: artist.notifyEmail,
     subject: `🧾 Print claim: ${item.title} (${price})${name ? ` — ${name}` : ''}`,
     html: `<p><strong>${name ?? 'Someone'}</strong> wants <strong>${item.title}</strong> (${price} · ${item.kind}).</p>

@@ -20,7 +20,8 @@ export interface ArtistDropsConfig {
   artistHandle: string
   artistName: string
   artistFirstName: string
-  notifyEmail: string
+  notifyEmail: string          // artist's real inbox — where their copy lands
+  fromEmail: string            // branded "from" on a domain the platform controls
   instagramUrl: string
   instagramHandle: string
   siteUrl: string
@@ -38,6 +39,7 @@ const DROPS: Record<string, ArtistDropsConfig> = {
     artistName: 'Lacey Rawson',
     artistFirstName: 'Lacey',
     notifyEmail: 'lacey@rawsunart.com',
+    fromEmail: 'RawSunArt <club@rawsunart.com>',
     instagramUrl: 'https://instagram.com/raw.sun.art',
     instagramHandle: '@raw.sun.art',
     siteUrl: 'https://rawsunart.com',

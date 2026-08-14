@@ -125,7 +125,7 @@ export async function POST(req: Request) {
       unsubscribeUrl: `${appUrl}/api/community/unsubscribe?id=${memberId}`,
     })
 
-    const sent = await sendEmail({ to: email, ...welcome })
+    const sent = await sendEmail({ from: event?.fromEmail, to: email, ...welcome })
     if (sent) {
       await supabase
         .from('community_members')
@@ -142,6 +142,7 @@ export async function POST(req: Request) {
     if (artistInbox) {
       const where = event ? `${event.eventTitle} · ${event.city}` : source
       await sendEmail({
+        from: event?.fromEmail,
         to: artistInbox,
         subject: `🔥 Walk-up interest${name ? `: ${name}` : ''} — ${where}`,
         html: `<p><strong>${name ?? 'Someone'}</strong> scanned your booth QR and wants a tattoo <strong>this weekend</strong>.</p>

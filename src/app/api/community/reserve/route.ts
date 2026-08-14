@@ -143,6 +143,7 @@ export async function POST(req: Request) {
 
   // Buyer: the code + the deadline.
   await sendEmail({
+    from: artist.fromEmail,
     to: email,
     subject: `Your ${item.title} print is on hold — code ${code}`,
     html: `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;">
@@ -160,6 +161,7 @@ export async function POST(req: Request) {
 
   // Artist: hold notice, Reply-To buyer.
   await sendEmail({
+    from: artist.fromEmail,
     to: artist.notifyEmail,
     subject: `⏳ HOLD ${item.title} — code ${code} (${boothIndex}/${item.boothQty})`,
     html: `<p><strong>${name ?? 'Someone'}</strong> reserved <strong>${item.title}</strong> (print ${boothIndex} of ${item.boothQty}, ${price}).</p>

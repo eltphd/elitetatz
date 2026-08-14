@@ -26,6 +26,7 @@ export interface EventFunnelConfig {
   instagramHandle: string
   bookingUrl: string
   notifyEmail: string        // where walk-up interest pings land (artist inbox)
+  fromEmail: string          // branded "from" on a platform-controlled domain
   active: boolean
 }
 
@@ -52,6 +53,7 @@ const EVENTS: Record<string, EventFunnelConfig> = {
     instagramHandle: '@raw.sun.art',
     bookingUrl: 'https://rawsunart.com/#inquiry',
     notifyEmail: 'lacey@rawsunart.com',
+    fromEmail: 'RawSunArt <club@rawsunart.com>',
     active: true,
   },
 }
