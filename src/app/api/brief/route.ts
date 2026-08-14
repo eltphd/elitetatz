@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { Message } from '@/lib/types'
+import { sendEmail } from '@/lib/resend'
+import { sendSms } from '@/lib/sms'
+import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 
 // Called by AgentChat when BRIEF_READY fires.
 // Saves the conversation + brief to Supabase, optionally emails Lacey.
@@ -82,8 +85,8 @@ export async function POST(req: Request) {
           .select('id')
           .single()
 
-        // Notify Lacey via email if RESEND_API_KEY is set
-        if (match && process.env.RESEND_API_KEY) {
+        // Notify Lacey: email (full brief) + SMS heads-up (one-liner)
+        if (match) {
           await notifyLacey(brief, match.id, sessionId)
         }
       }
@@ -97,33 +100,38 @@ export async function POST(req: Request) {
 }
 
 async function notifyLacey(brief: Record<string, unknown>, matchId: string, sessionId: string) {
-  const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
-  const body = `
-New inquiry from EliteTatz:
+  const concept = String(brief.concept ?? 'a new piece')
+  const style = Array.isArray(brief.styles) ? brief.styles.join(', ') : String(brief.styles ?? 'TBD')
+  const placement = String(brief.placement ?? 'TBD')
+  const size = String(brief.size ?? 'TBD')
+  const budget = brief.budget_max_cents ? `$${Number(brief.budget_max_cents) / 100}` : 'TBD'
+  const score = `${brief.readiness_score ?? 0}/100`
 
-Concept: ${brief.concept ?? 'Not specified'}
-Style: ${Array.isArray(brief.styles) ? brief.styles.join(', ') : brief.styles ?? 'TBD'}
-Placement: ${brief.placement ?? 'TBD'}
-Size: ${brief.size ?? 'TBD'}
+  // Full brief by email (branded, verified sender)
+  const emailBody = `New qualified inquiry via your concierge:
+
+Concept: ${concept}
+Style: ${style}
+Placement: ${placement}
+Size: ${size}
 Has reference: ${brief.has_reference ? 'Yes' : 'No'}
-Budget: ${brief.budget_max_cents ? `$${Number(brief.budget_max_cents) / 100}` : 'TBD'}
-Readiness score: ${brief.readiness_score ?? 0}/100
+Budget: ${budget}
+Readiness: ${score}
 
-View and respond: ${dashboardUrl}
-Match ID: ${matchId}
-  `.trim()
+Just reply to this email to reach them.
+(session ${sessionId} · match ${matchId})`
 
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'EliteTatz <noreply@elitetatz.com>',
-      to: process.env.ARTIST_NOTIFICATION_EMAIL ?? 'lacey@rawsunart.com',
-      subject: `New inquiry — ${brief.concept ?? 'new client'} · ${brief.placement ?? ''}`,
-      text: body,
-    }),
+  await sendEmail({
+    from: ARTIST_CONFIG.fromEmail,
+    to: process.env.ARTIST_NOTIFICATION_EMAIL ?? ARTIST_CONFIG.email,
+    subject: `🎨 New booking — ${concept} · ${placement}`,
+    html: emailBody.replace(/\n/g, '<br>'),
+    text: emailBody,
+  })
+
+  // One-line heads-up by SMS so she sees it where she lives (best-effort)
+  await sendSms({
+    to: ARTIST_CONFIG.smsNumber,
+    text: `🔥 New qualified booking — ${concept} (${style}), ${placement}, ${size}. Budget ${budget}. Full brief in your email; reply there to reach them.`,
   })
 }

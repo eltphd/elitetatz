@@ -12,6 +12,8 @@ export const ARTIST_CONFIG = {
   // Update these when she sends new hours:
   availability: 'Monday–Thursday (hours vary — the agent will ask)',
   email: 'lacey@rawsunart.com',
+  fromEmail: 'RawSunArt <club@rawsunart.com>',
+  smsNumber: '+16148585574', // Dialpad — where booking heads-ups land
   instagram: '@rawsunart',
   specialties: ['watercolor', 'fine-line', 'illustrative', 'blackwork'],
   primarySpecialty: 'watercolor',

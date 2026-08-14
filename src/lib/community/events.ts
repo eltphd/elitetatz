@@ -27,6 +27,7 @@ export interface EventFunnelConfig {
   bookingUrl: string
   notifyEmail: string        // where walk-up interest pings land (artist inbox)
   fromEmail: string          // branded "from" on a platform-controlled domain
+  smsNumber?: string         // Dialpad/cell for one-line heads-ups
   active: boolean
 }
 
@@ -54,6 +55,7 @@ const EVENTS: Record<string, EventFunnelConfig> = {
     bookingUrl: 'https://rawsunart.com/#inquiry',
     notifyEmail: 'lacey@rawsunart.com',
     fromEmail: 'RawSunArt <club@rawsunart.com>',
+    smsNumber: '+16148585574',
     active: true,
   },
 }

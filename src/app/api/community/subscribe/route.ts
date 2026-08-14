@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail, buildWelcomeEmail } from '@/lib/resend'
+import { sendSms } from '@/lib/sms'
 import { getEventConfig } from '@/lib/community/events'
 
 // Public community signup endpoint. Called from artist presence sites
@@ -152,6 +153,12 @@ ${note ? `<p>Their idea: &ldquo;${note.replace(/</g, '&lt;')}&rdquo;</p>` : ''}
         text: `${name ?? 'Someone'} scanned your booth QR and wants a tattoo this weekend.\n${note ? `Their idea: "${note}"\n` : ''}Email: ${email}\n\nJust hit reply — your reply goes straight to them.`,
         replyTo: email,
       })
+      if (event?.smsNumber) {
+        await sendSms({
+          to: event.smsNumber,
+          text: `🔥 Walk-up wants ink${name ? ` (${name})` : ''}${note ? ` — "${note}"` : ''}. Reply to the email to reach them.`,
+        })
+      }
     }
   }
 

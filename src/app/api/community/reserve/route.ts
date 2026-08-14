@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/resend'
+import { sendSms } from '@/lib/sms'
 import { getArtistDrops, findDropItem } from '@/lib/community/drops'
 
 // Reserve a booth print: issue a pickup code, count "print N of 10", and hold
@@ -170,6 +171,14 @@ export async function POST(req: Request) {
     text: `${name ?? 'Someone'} reserved ${item.title} (${boothIndex}/${item.boothQty}, ${price}). Code ${code}. Hold until ${expiresAt}. Reply reaches the buyer.`,
     replyTo: email,
   })
+
+  // One-line SMS heads-up (best-effort)
+  if (artist.smsNumber) {
+    await sendSms({
+      to: artist.smsNumber,
+      text: `🧾 ${name ?? 'Someone'} reserved ${item.title} print (${boothIndex}/${item.boothQty}) — code ${code}. Hold ${HOLD_MINUTES} min.`,
+    })
+  }
 
   return Response.json({ ok: true, code, boothIndex, total: item.boothQty, expiresAt }, { headers })
 }
