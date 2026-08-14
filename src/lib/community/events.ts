@@ -58,6 +58,34 @@ const EVENTS: Record<string, EventFunnelConfig> = {
     smsNumber: '+16148585574',
     active: true,
   },
+
+  // Shared AION Tattoo booth — all resident artists, one funnel.
+  // ⚠️ notifyEmail is a placeholder monitored inbox — swap for the shop
+  //    greeter/booking admin's address when you have it.
+  'aion-hellcity-2026': {
+    slug: 'aion-hellcity-2026',
+    artistHandle: 'aion',
+    artistName: 'AION Tattoo',
+    artistFirstName: 'AION',
+    eventTitle: 'Hell City Tattoo Festival',
+    city: 'Phoenix, AZ',
+    cityShort: 'Phoenix',
+    intro:
+      "The AION Tattoo crew is at Hell City. Realism, Japanese, watercolor, neo-traditional, and more — under one roof from Columbus, Ohio. Tell us what you want and we'll match you with the right artist.",
+    incentives: [
+      { icon: '🎨', title: 'Four artists, one booth', detail: 'realism, watercolor, Japanese, neo-traditional' },
+      { icon: '✨', title: 'Walk-ups welcome', detail: 'as the weekend schedule allows' },
+      { icon: '🗺', title: 'Columbus-based', detail: 'book with us back home too' },
+    ],
+    giveaway: false,
+    siteUrl: 'https://www.aiontattoo.com',
+    instagramUrl: 'https://www.instagram.com/aiontattoo/',
+    instagramHandle: '@aiontattoo',
+    bookingUrl: 'https://www.aiontattoo.com',
+    notifyEmail: 'lacey@rawsunart.com',
+    fromEmail: 'AION Tattoo × RawSunArt <club@rawsunart.com>',
+    active: true,
+  },
 }
 
 export function getEventConfig(slug: string): EventFunnelConfig | null {
