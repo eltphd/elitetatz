@@ -67,10 +67,10 @@ export async function POST(req: Request) {
           method: 'POST',
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'TatzAI <noreply@tatzai.com>',
+            from: 'EliteTatz <noreply@elitetatz.com>',
             to: clientData.email,
             subject: 'Your tattoo inquiry was accepted by Lacey Rawson',
-            text: `Hey ${clientData.name ?? 'there'},\n\nLacey reviewed your inquiry and wants to work with you.\n\n${artist_response ? `Her note: "${artist_response}"\n\n` : ''}To confirm your appointment, pay the $100 deposit here:\n${depositUrl}\n\nThe deposit comes off your final price as long as you show up.\n\n— RawSunArt via TatzAI`,
+            text: `Hey ${clientData.name ?? 'there'},\n\nLacey reviewed your inquiry and wants to work with you.\n\n${artist_response ? `Her note: "${artist_response}"\n\n` : ''}To confirm your appointment, pay the $100 deposit here:\n${depositUrl}\n\nThe deposit comes off your final price as long as you show up.\n\n— RawSunArt via EliteTatz`,
           }),
         }).catch(() => null)
       }

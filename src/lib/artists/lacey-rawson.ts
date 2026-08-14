@@ -22,7 +22,7 @@ export const ARTIST_CONFIG = {
 }
 
 // Her actual voice — distilled from email corpus.
-// Agent uses this to respond AS Lacey's concierge, not generic TatzAI.
+// Agent uses this to respond AS Lacey's concierge, not generic EliteTatz.
 export const LACEY_VOICE_PROFILE = {
   // What she almost always says in opening replies
   openingPhrases: [

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import ArtistWaitlistForm from '@/components/ArtistWaitlistForm'
 
 export const metadata: Metadata = {
-  title: 'TatzAI for Artists — Your art. Your people. One link.',
+  title: 'EliteTatz for Artists — Your art. Your people. One link.',
   description:
     'A presence hub, an AI concierge that qualifies clients in your voice, and a community engine that turns convention crowds into collectors. You make art. It handles the rest.',
 }
@@ -25,8 +25,8 @@ const PILLARS = [
   },
   {
     icon: '🌐',
-    title: 'A network, not another app',
-    body: 'Guest spots, conventions, artist-to-artist referrals. When your books close, the right client finds the right artist next door — and everybody wins.',
+    title: 'A network of elite artists',
+    body: 'Guest spots, conventions like Hell City, artist-to-artist referrals. When your books close, your kind of client finds another artist of your caliber — and the community grows instead of the noise.',
   },
 ]
 
@@ -44,7 +44,7 @@ export default function ArtistsPage() {
     <div className="min-h-dvh bg-[#0a0a0a] text-[#f5f5f0]">
       <div className="mx-auto max-w-lg px-5 pb-20 pt-10">
         {/* Hero */}
-        <p className="mb-8 text-sm font-semibold uppercase tracking-[0.2em] text-[#c9a84c]">TatzAI · For Artists</p>
+        <p className="mb-8 text-sm font-semibold uppercase tracking-[0.2em] text-[#c9a84c]">EliteTatz · For Artists</p>
         <h1 className="mb-5 text-4xl font-bold leading-tight">
           You win them at the booth.
           <br />
@@ -55,10 +55,11 @@ export default function ArtistsPage() {
           messages, unpaid sketch requests, and &ldquo;how much for a sleeve?&rdquo;
         </p>
         <p className="mb-10 leading-relaxed text-[#a0a0a0]">
-          TatzAI gives you a <strong className="text-[#f5f5f0]">presence hub</strong>, an{' '}
-          <strong className="text-[#f5f5f0]">AI concierge that sounds like you</strong>, and a{' '}
-          <strong className="text-[#f5f5f0]">community that compounds</strong> — with every complexity handled invisibly
-          in the background. AI for the admin. Never for the art.
+          EliteTatz connects the original tattoo community — <strong className="text-[#f5f5f0]">elite artists</strong> —
+          with <strong className="text-[#f5f5f0]">clients who actually value the art and the artist</strong>. You get a
+          presence hub, a concierge that qualifies inquiries in your voice, and a community that compounds. The
+          technology runs invisibly in the background, by design: <strong className="text-[#f5f5f0]">admin only,
+          never the art</strong>.
         </p>
 
         {/* Live proof */}
@@ -114,7 +115,7 @@ export default function ArtistsPage() {
         <ArtistWaitlistForm source="artists-page" />
 
         <p className="mt-12 text-center text-xs text-[#6b6b6b]">
-          TatzAI · AI for the admin, never for the art.
+          EliteTatz · AI for the admin, never for the art.
         </p>
       </div>
     </div>

@@ -138,7 +138,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <p className="text-center text-[10px] text-[#6b6b6b] pb-2">TatzAI v0.1.0</p>
+        <p className="text-center text-[10px] text-[#6b6b6b] pb-2">EliteTatz v0.1.0</p>
       </main>
 
       <BottomNav active="profile" />

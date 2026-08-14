@@ -29,7 +29,7 @@ export default function PaymentPage() {
         <div className="flex items-start gap-3 p-3 bg-[#141414] border border-[#2a2a2a] rounded-xl mb-5">
           <Shield className="w-4 h-4 text-[#c9a84c] shrink-0 mt-0.5" />
           <p className="text-xs text-[#6b6b6b] leading-relaxed">
-            Cards are stored securely via Stripe. TatzAI never stores your full card number.
+            Cards are stored securely via Stripe. EliteTatz never stores your full card number.
           </p>
         </div>
 

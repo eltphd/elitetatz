@@ -20,7 +20,7 @@ const MOCK_NOTIFICATIONS = [
     id: '2',
     type: 'brief_ready',
     title: 'Your brief is ready to send',
-    body: 'TatzAI finished refining your fine-line botanical piece. Send it to artists?',
+    body: 'EliteTatz finished refining your fine-line botanical piece. Send it to artists?',
     time: '1d ago',
     read: false,
     icon: Sparkles,

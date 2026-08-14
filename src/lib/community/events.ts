@@ -25,6 +25,7 @@ export interface EventFunnelConfig {
   instagramUrl: string
   instagramHandle: string
   bookingUrl: string
+  notifyEmail: string        // where walk-up interest pings land (artist inbox)
   active: boolean
 }
 
@@ -50,6 +51,7 @@ const EVENTS: Record<string, EventFunnelConfig> = {
     instagramUrl: 'https://instagram.com/raw.sun.art',
     instagramHandle: '@raw.sun.art',
     bookingUrl: 'https://rawsunart.com/#inquiry',
+    notifyEmail: 'lacey@rawsunart.com',
     active: true,
   },
 }

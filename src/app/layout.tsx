@@ -6,10 +6,10 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'TatzAI — Find Your Artist',
+  title: 'EliteTatz — Find Your Artist',
   description: 'AI-powered tattoo matching. Tell us your vision, we find your artist.',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'TatzAI' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'EliteTatz' },
 }
 
 export const viewport: Viewport = {

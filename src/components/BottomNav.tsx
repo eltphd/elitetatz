@@ -6,7 +6,7 @@ import { Home, Search, Sparkles, Zap, User } from 'lucide-react'
 const NAV_ITEMS = [
   { href: '/', icon: Home, label: 'Home', key: 'home' },
   { href: '/explore', icon: Search, label: 'Explore', key: 'explore' },
-  { href: '/agent', icon: Sparkles, label: 'TatzAI', key: 'agent' },
+  { href: '/agent', icon: Sparkles, label: 'EliteTatz', key: 'agent' },
   { href: '/flash', icon: Zap, label: 'Flash', key: 'flash' },
   { href: '/profile', icon: User, label: 'Me', key: 'profile' },
 ]

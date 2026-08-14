@@ -21,7 +21,7 @@ const STARTER_PROMPTS = [
 
 const WELCOME: Message = {
   role: 'assistant',
-  content: `Hey! I'm TatzAI — your personal tattoo concierge. I'm here to help you:\n\n• **Refine your idea** into something an artist can work with\n• **Figure out your budget** based on what you actually want\n• **Match you with the right artist** for your style and location\n\nWhen you're ready, I'll put together a brief and send it to the best matching artists. They'll respond with an offer — you accept, we handle everything.\n\n**What are you thinking about getting?**`,
+  content: `Hey! I'm EliteTatz — your personal tattoo concierge. I'm here to help you:\n\n• **Refine your idea** into something an artist can work with\n• **Figure out your budget** based on what you actually want\n• **Match you with the right artist** for your style and location\n\nWhen you're ready, I'll put together a brief and send it to the best matching artists. They'll respond with an offer — you accept, we handle everything.\n\n**What are you thinking about getting?**`,
   timestamp: new Date().toISOString(),
 }
 

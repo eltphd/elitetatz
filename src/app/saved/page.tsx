@@ -84,9 +84,9 @@ export default function SavedPage() {
           <div className="mt-6 bg-[#141414] border border-[#2a2a2a] rounded-2xl p-4 text-center">
             <Sparkles className="w-5 h-5 text-[#c9a84c] mx-auto mb-2" />
             <p className="text-sm font-medium mb-1">Ready to pick one?</p>
-            <p className="text-xs text-[#6b6b6b] mb-3">Let TatzAI match you with the best fit from your saved list.</p>
+            <p className="text-xs text-[#6b6b6b] mb-3">Let EliteTatz match you with the best fit from your saved list.</p>
             <Link href="/agent" className="inline-flex items-center gap-2 bg-[#c9a84c] text-black font-semibold px-5 py-2.5 rounded-xl text-sm">
-              Start with TatzAI
+              Start with EliteTatz
             </Link>
           </div>
         )}

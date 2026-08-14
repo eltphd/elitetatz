@@ -120,7 +120,7 @@ export default function RawSunArtPage() {
           className="mt-6 flex items-center justify-center gap-2 w-full bg-[#c9a84c] text-black font-bold py-4 rounded-2xl text-sm"
         >
           <Sparkles className="w-4 h-4" />
-          Start Your Inquiry with TatzAI
+          Start Your Inquiry with EliteTatz
         </Link>
         <p className="text-center text-[11px] text-[#6b6b6b] mt-2">
           AI concierge gathers your concept — Lacey reviews and confirms
@@ -163,7 +163,7 @@ export default function RawSunArtPage() {
           <p className="text-xs text-[#6b6b6b] uppercase tracking-widest font-medium mb-4">How Booking Works</p>
           <div className="space-y-3">
             {[
-              { n: '1', title: 'Tell the AI your concept', body: "TatzAI collects your idea, size, placement, style, and reference. Takes 5 minutes." },
+              { n: '1', title: 'Tell the AI your concept', body: "EliteTatz collects your idea, size, placement, style, and reference. Takes 5 minutes." },
               { n: '2', title: 'Lacey reviews and quotes', body: "She reviews your inquiry and sends a quote. You won't get a sketch yet — design is part of your session." },
               { n: '3', title: 'Deposit locks your time', body: "$100 reserves your appointment and is credited toward your final price." },
               { n: '4', title: 'Come in, create together', body: "She goes over the design with you before anything touches skin. No surprises." },
@@ -226,7 +226,7 @@ export default function RawSunArtPage() {
             Start your inquiry
           </Link>
           <p className="text-[10px] text-[#6b6b6b] mt-3">
-            Powered by <span className="text-[#c9a84c]">TatzAI</span> · No account required to inquire
+            Powered by <span className="text-[#c9a84c]">EliteTatz</span> · No account required to inquire
           </p>
         </div>
 

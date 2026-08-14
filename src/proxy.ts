@@ -10,7 +10,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public community endpoints are unauthenticated + CORS-served: no session work.
-  if (pathname.startsWith('/api/community') || pathname.startsWith('/e/')) {
+  if (pathname.startsWith('/api/community') || pathname.startsWith('/e/') || pathname.startsWith('/drops/')) {
     return NextResponse.next({ request })
   }
 

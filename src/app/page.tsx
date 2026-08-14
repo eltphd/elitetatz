@@ -34,7 +34,7 @@ export default function HomePage() {
           >
             <div className="flex items-center gap-3">
               <Sparkles className="w-5 h-5" />
-              <span>Start with TatzAI</span>
+              <span>Start with EliteTatz</span>
             </div>
             <ChevronRight className="w-5 h-5" />
           </Link>

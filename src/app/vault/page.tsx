@@ -57,7 +57,7 @@ export default function VaultPage() {
           <div className="text-center py-16">
             <Vault className="w-10 h-10 text-[#6b6b6b] mx-auto mb-3 opacity-40" />
             <p className="text-sm text-[#6b6b6b]">Nothing here yet</p>
-            <p className="text-xs text-[#6b6b6b] mt-1">Assets are added automatically as you work with TatzAI and artists</p>
+            <p className="text-xs text-[#6b6b6b] mt-1">Assets are added automatically as you work with EliteTatz and artists</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">

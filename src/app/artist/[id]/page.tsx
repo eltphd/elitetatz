@@ -127,7 +127,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
             className="flex-1 flex items-center justify-center gap-2 bg-[#c9a84c] hover:bg-[#d4b45a] text-black font-semibold px-4 py-3.5 rounded-2xl transition-colors text-sm"
           >
             <Sparkles className="w-4 h-4" />
-            Match with TatzAI
+            Match with EliteTatz
           </Link>
           <button className="px-4 py-3.5 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-[#c9a84c]/40 rounded-2xl transition-colors text-sm font-medium">
             Save

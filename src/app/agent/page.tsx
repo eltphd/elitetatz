@@ -26,7 +26,7 @@ export default async function AgentPage({ searchParams }: Props) {
               </>
             ) : (
               <>
-                <h1 className="text-sm font-semibold text-white">TatzAI</h1>
+                <h1 className="text-sm font-semibold text-white">EliteTatz</h1>
                 <p className="text-[10px] text-[#6b6b6b]">Your tattoo concierge</p>
               </>
             )}

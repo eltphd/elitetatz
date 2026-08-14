@@ -18,7 +18,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
   const from =
     args.from ??
     process.env.COMMUNITY_FROM_EMAIL ??
-    'TatzAI <noreply@tatzai.com>'
+    'EliteTatz <noreply@elitetatz.com>'
 
   try {
     const res = await fetch('https://api.resend.com/emails', {

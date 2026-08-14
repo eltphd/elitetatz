@@ -81,7 +81,7 @@ export default function MatchesPage() {
             <Sparkles className="w-10 h-10 text-[#c9a84c] mx-auto mb-4 opacity-40" />
             <p className="text-[#6b6b6b] text-sm mb-4">No projects yet</p>
             <Link href="/agent" className="text-[#c9a84c] text-sm font-medium">
-              Start with TatzAI →
+              Start with EliteTatz →
             </Link>
           </div>
         ) : (

@@ -41,7 +41,7 @@ ${artistContext}
 ## Your Task
 Based on this artist's actual rates, style expertise, and the client's brief:
 
-1. Suggest a fair offer price in cents (what TatzAI should offer the artist on the client's behalf)
+1. Suggest a fair offer price in cents (what EliteTatz should offer the artist on the client's behalf)
 2. Write a 1-sentence pitch to show the client WHY this artist is a good match
 3. Flag any potential friction (e.g. artist doesn't typically do cover-ups, client budget is at the floor, etc.)
 

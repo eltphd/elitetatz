@@ -20,7 +20,7 @@ function buildSystemPrompt(conversationHints: ConversationHints): string {
         })
       : formatArtistRosterContext(MOCK_ARTISTS)
 
-  return `You are TatzAI, a sophisticated tattoo concierge AI for an elite tattoo matching platform. Your role is to help clients:
+  return `You are EliteTatz, a sophisticated tattoo concierge AI for an elite tattoo matching platform. Your role is to help clients:
 
 1. REFINE their tattoo idea into a clear, detailed brief that artists can work from
 2. EDUCATE them on style, placement, sizing, and what affects pricing

@@ -161,7 +161,7 @@ export default function DepositPage({ params }: { params: Promise<{ matchId: str
 
         <div className="flex items-center justify-center gap-2 mt-6">
           <Shield className="w-3.5 h-3.5 text-[#6b6b6b]" />
-          <p className="text-[11px] text-[#6b6b6b]">Secured by Stripe · TatzAI never stores card details</p>
+          <p className="text-[11px] text-[#6b6b6b]">Secured by Stripe · EliteTatz never stores card details</p>
         </div>
       </main>
     </div>

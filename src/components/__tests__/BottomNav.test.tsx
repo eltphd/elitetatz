@@ -26,7 +26,7 @@ describe('BottomNav', () => {
     expect(exploreLink).toHaveClass('text-[#c9a84c]')
   })
 
-  it('renders TatzAI as a styled CTA', () => {
+  it('renders EliteTatz as a styled CTA', () => {
     render(<BottomNav active="home" />)
     const aiLink = screen.getByTestId('nav-agent')
     expect(aiLink).toHaveClass('bg-[#c9a84c]')

@@ -158,7 +158,7 @@ export default function FlashPage() {
                 'Exclusive rights to this design — listing closes immediately',
                 'Direct booking with the artist',
                 'Design saved to your Vault',
-                'TatzAI coordinates the appointment details',
+                'EliteTatz coordinates the appointment details',
               ].map((item) => (
                 <div key={item} className="flex items-start gap-2 mb-2">
                   <CheckCircle className="w-3.5 h-3.5 text-[#c9a84c] shrink-0 mt-0.5" />

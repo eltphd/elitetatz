@@ -35,6 +35,8 @@ interface SubscribeBody {
   eventSlug?: string
   artistHandle?: string
   giveawayEntry?: boolean
+  intent?: string            // 'walkup' = wants a tattoo at the event, ping the artist now
+  note?: string              // their idea, forwarded in the artist ping
 }
 
 export async function POST(req: Request) {
@@ -129,6 +131,26 @@ export async function POST(req: Request) {
         .from('community_members')
         .update({ welcome_sent_at: new Date().toISOString() })
         .eq('id', memberId)
+    }
+  }
+
+  // Walk-up interest: ping the artist immediately, Reply-To set to the client
+  // so the artist's normal inbox reply goes straight to them — no dashboard.
+  if (body.intent === 'walkup') {
+    const note = (body.note ?? '').trim().slice(0, 2000)
+    const artistInbox = event?.notifyEmail ?? process.env.ARTIST_NOTIFICATION_EMAIL
+    if (artistInbox) {
+      const where = event ? `${event.eventTitle} · ${event.city}` : source
+      await sendEmail({
+        to: artistInbox,
+        subject: `🔥 Walk-up interest${name ? `: ${name}` : ''} — ${where}`,
+        html: `<p><strong>${name ?? 'Someone'}</strong> scanned your booth QR and wants a tattoo <strong>this weekend</strong>.</p>
+${note ? `<p>Their idea: &ldquo;${note.replace(/</g, '&lt;')}&rdquo;</p>` : ''}
+<p>Email: ${email}</p>
+<p><strong>Just hit reply</strong> — your reply goes straight to them.</p>`,
+        text: `${name ?? 'Someone'} scanned your booth QR and wants a tattoo this weekend.\n${note ? `Their idea: "${note}"\n` : ''}Email: ${email}\n\nJust hit reply — your reply goes straight to them.`,
+        replyTo: email,
+      })
     }
   }
 

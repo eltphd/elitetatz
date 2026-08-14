@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 async function notifyLacey(brief: Record<string, unknown>, matchId: string, sessionId: string) {
   const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`
   const body = `
-New inquiry from TatzAI:
+New inquiry from EliteTatz:
 
 Concept: ${brief.concept ?? 'Not specified'}
 Style: ${Array.isArray(brief.styles) ? brief.styles.join(', ') : brief.styles ?? 'TBD'}
@@ -120,7 +120,7 @@ Match ID: ${matchId}
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'TatzAI <noreply@tatzai.com>',
+      from: 'EliteTatz <noreply@elitetatz.com>',
       to: process.env.ARTIST_NOTIFICATION_EMAIL ?? 'lacey@rawsunart.com',
       subject: `New inquiry — ${brief.concept ?? 'new client'} · ${brief.placement ?? ''}`,
       text: body,

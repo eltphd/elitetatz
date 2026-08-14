@@ -287,7 +287,7 @@ export const MOCK_VAULT_ASSETS: VaultAsset[] = [
     client_id: 'c1',
     type: 'inspiration',
     url: 'https://images.unsplash.com/photo-1565733293412-3e8e36e62e61?w=400&q=80',
-    label: 'Inspiration from TatzAI chat',
+    label: 'Inspiration from EliteTatz chat',
     created_at: '2024-01-08',
   },
   {

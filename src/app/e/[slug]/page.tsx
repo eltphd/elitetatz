@@ -69,7 +69,7 @@ export default async function EventFunnelPage({ params }: { params: Promise<{ sl
         <p className="mt-10 text-center text-xs text-[#6a5f4a]">
           {event.artistName} · powered by{' '}
           <a href="/artists" className="text-[#c9a050]">
-            TatzAI
+            EliteTatz
           </a>{' '}
           — artists, get your own funnel →
         </p>

@@ -9,6 +9,8 @@ import type { EventFunnelConfig } from '@/lib/community/events'
 export default function EventFunnel({ event }: { event: EventFunnelConfig }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [walkup, setWalkup] = useState(false)
+  const [note, setNote] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
 
@@ -31,6 +33,8 @@ export default function EventFunnel({ event }: { event: EventFunnelConfig }) {
           eventSlug: event.slug,
           source: event.slug,
           giveawayEntry: event.giveaway,
+          intent: walkup ? 'walkup' : undefined,
+          note: walkup ? note.trim() : undefined,
         }),
       })
       if (!res.ok) throw new Error()
@@ -114,6 +118,26 @@ export default function EventFunnel({ event }: { event: EventFunnelConfig }) {
           autoComplete="email"
           className="mb-2.5 w-full rounded-full border border-[rgba(201,160,80,0.15)] bg-[#111008] px-5 py-3.5 text-base text-[#f0ebe0] outline-none placeholder:text-[#6a5f4a] focus:border-[rgba(201,160,80,0.5)]"
         />
+        <label className="mb-2.5 flex cursor-pointer items-start gap-2.5 rounded-xl border border-[rgba(201,160,80,0.15)] bg-[#111008] px-4 py-3 text-sm text-[#a09070]">
+          <input
+            type="checkbox"
+            checked={walkup}
+            onChange={(e) => setWalkup(e.target.checked)}
+            className="mt-0.5 accent-[#c9a050]"
+          />
+          <span>
+            🔥 <strong className="text-[#f0ebe0]">I want a tattoo this weekend</strong> — ping {event.artistFirstName} right now
+          </span>
+        </label>
+        {walkup && (
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What are you thinking? (subject, size, placement…)"
+            rows={3}
+            className="mb-2.5 w-full rounded-xl border border-[rgba(201,160,80,0.15)] bg-[#111008] px-5 py-3.5 text-base text-[#f0ebe0] outline-none placeholder:text-[#6a5f4a] focus:border-[rgba(201,160,80,0.5)]"
+          />
+        )}
         <button
           type="submit"
           disabled={status === 'sending'}

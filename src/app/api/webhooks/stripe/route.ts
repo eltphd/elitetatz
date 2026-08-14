@@ -34,7 +34,7 @@ export async function POST(req: Request) {
           })
           .eq('id', matchId)
 
-        // Transfer 80% to artist (TatzAI keeps 20% platform fee)
+        // Transfer 80% to artist (EliteTatz keeps 20% platform fee)
         const match = await supabase
           .from('matches')
           .select('artist_id, artists(stripe_account_id)')
