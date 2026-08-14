@@ -30,7 +30,7 @@ export interface ArtistDropsConfig {
 }
 
 const IMG = 'https://rawsunart.com/images/prints'
-const PRINT_PRICE = 4500 // ⚠️ placeholder — confirm with Lacey
+const PRINT_PRICE = 2500 // $25 per signed print
 
 const DROPS: Record<string, ArtistDropsConfig> = {
   rawsunart: {
@@ -42,8 +42,8 @@ const DROPS: Record<string, ArtistDropsConfig> = {
     instagramHandle: '@raw.sun.art',
     siteUrl: 'https://rawsunart.com',
     intro:
-      'Signed prints from the studio. Only 10 of each came to Hell City — after that it\'s online ordering. Claim one and Lacey emails you directly to arrange booth pickup or shipping.',
-    boothNote: 'At Hell City this weekend? Claim now, pick up at the booth — first come, first served.',
+      'Signed prints — only 10 of each came to Hell City. Reserve one and you\'ll get a pickup code by email: bring it to the booth within 20 minutes and it\'s yours. Miss the window and it releases to the next collector (or order online anytime).',
+    boothNote: 'At Hell City now? Reserve → get your code → show Lacey at the booth. First come, first served.',
     items: [
       { slug: 'skull-heart', title: 'Skull Heart', description: 'Watercolor print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/skull-heart.webp`, boothQty: 10, status: 'available' },
       { slug: 'sun', title: 'Sun', description: 'Watercolor print · signed · limited to 10', kind: 'print', priceCents: PRINT_PRICE, imageUrl: `${IMG}/sun.webp`, boothQty: 10, status: 'available' },
