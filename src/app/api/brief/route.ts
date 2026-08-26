@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { Message } from '@/lib/types'
 import { sendEmail } from '@/lib/resend'
-import { sendSms } from '@/lib/sms'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+import { checkAbuse } from '@/lib/rate-limit'
 
 // Called by AgentChat when BRIEF_READY fires.
 // Saves the conversation + brief to Supabase, optionally emails Lacey.
@@ -15,6 +15,11 @@ interface BriefPayload {
 }
 
 export async function POST(req: Request) {
+  // Emails the artist on every completed brief — same abuse surface as the
+  // community endpoints, so it gets the same limits.
+  const limited = checkAbuse('brief', req, { max: 5, windowMs: 10 * 60_000, maxPerDay: 150 })
+  if (limited) return limited
+
   try {
     const { messages, brief, mode, sessionId }: BriefPayload = await req.json()
 
@@ -127,11 +132,5 @@ Just reply to this email to reach them.
     subject: `🎨 New booking — ${concept} · ${placement}`,
     html: emailBody.replace(/\n/g, '<br>'),
     text: emailBody,
-  })
-
-  // One-line heads-up by SMS so she sees it where she lives (best-effort)
-  await sendSms({
-    to: ARTIST_CONFIG.smsNumber,
-    text: `🔥 New qualified booking — ${concept} (${style}), ${placement}, ${size}. Budget ${budget}. Full brief in your email; reply there to reach them.`,
   })
 }

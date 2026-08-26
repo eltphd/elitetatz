@@ -1,11 +1,15 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail, buildWelcomeEmail } from '@/lib/resend'
-import { sendSms } from '@/lib/sms'
-import { getEventConfig } from '@/lib/community/events'
+import { checkAbuse, isBot } from '@/lib/rate-limit'
 
-// Public community signup endpoint. Called from artist presence sites
-// (rawsunart.com) and from /e/[slug] event funnels on this app.
-// Records the member in Supabase and sends the branded welcome email.
+// Collectors Club signup. Called from rawsunart.com.
+//
+// This endpoint sends mail, so it is rate limited and honeypotted — see
+// lib/rate-limit.ts for why CORS alone is not a control here.
+//
+// The convention walk-up ping and Dialpad SMS heads-up that used to live in
+// this route were removed: the event ended, and as unauthenticated
+// email/SMS triggers they were the vector for the spam that followed.
 
 const ALLOWED_ORIGINS = new Set([
   'https://rawsunart.com',
@@ -33,21 +37,26 @@ interface SubscribeBody {
   email?: string
   name?: string
   source?: string
-  eventSlug?: string
   artistHandle?: string
-  giveawayEntry?: boolean
-  intent?: string            // 'walkup' = wants a tattoo at the event, ping the artist now
-  note?: string              // their idea, forwarded in the artist ping
+  _gotcha?: string
 }
 
 export async function POST(req: Request) {
   const headers = corsHeaders(req)
+
+  const limited = checkAbuse('subscribe', req, { max: 5, windowMs: 10 * 60_000, maxPerDay: 200 }, headers)
+  if (limited) return limited
 
   let body: SubscribeBody
   try {
     body = await req.json()
   } catch {
     return Response.json({ error: 'Invalid JSON' }, { status: 400, headers })
+  }
+
+  // Report success to bots so they stop retrying and learn nothing.
+  if (isBot(body as Record<string, unknown>)) {
+    return Response.json({ ok: true }, { headers })
   }
 
   const email = (body.email ?? '').trim().toLowerCase()
@@ -57,10 +66,7 @@ export async function POST(req: Request) {
 
   const name = (body.name ?? '').trim().slice(0, 120) || null
   const artistHandle = (body.artistHandle ?? 'rawsunart').trim().toLowerCase().slice(0, 60)
-  const eventSlug = (body.eventSlug ?? '').trim().slice(0, 80) || null
-  const source = (body.source ?? eventSlug ?? 'web').trim().slice(0, 80)
-  const event = eventSlug ? getEventConfig(eventSlug) : null
-  const giveawayEntry = Boolean(body.giveawayEntry && event?.giveaway)
+  const source = (body.source ?? 'web').trim().slice(0, 80)
 
   const supabase = createAdminClient()
   if (!supabase) {
@@ -82,24 +88,12 @@ export async function POST(req: Request) {
     memberId = existing.id
     await supabase
       .from('community_members')
-      .update({
-        name: name ?? undefined,
-        source,
-        event_slug: eventSlug ?? undefined,
-        giveaway_entry: giveawayEntry || undefined,
-      })
+      .update({ name: name ?? undefined, source })
       .eq('id', existing.id)
   } else {
     const { data: created, error } = await supabase
       .from('community_members')
-      .insert({
-        artist_handle: artistHandle,
-        email,
-        name,
-        source,
-        event_slug: eventSlug,
-        giveaway_entry: giveawayEntry,
-      })
+      .insert({ artist_handle: artistHandle, email, name, source })
       .select('id')
       .single()
 
@@ -116,49 +110,20 @@ export async function POST(req: Request) {
   if (!alreadyWelcomed && !unsubscribed) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.vercel.app'
     const welcome = buildWelcomeEmail({
-      artistName: event?.artistName ?? 'Lacey Rawson',
-      artistHandle: event?.artistHandle === 'rawsunart' || artistHandle === 'rawsunart' ? 'RawSunArt' : artistHandle,
-      instagramUrl: event?.instagramUrl ?? 'https://instagram.com/raw.sun.art',
-      siteUrl: event?.siteUrl ?? 'https://rawsunart.com',
+      artistName: 'Lacey Rawson',
+      artistHandle: artistHandle === 'rawsunart' ? 'RawSunArt' : artistHandle,
+      instagramUrl: 'https://instagram.com/raw.sun.art',
+      siteUrl: 'https://rawsunart.com',
       recipientName: name?.split(' ')[0],
-      eventTitle: event ? `${event.eventTitle} · ${event.city}` : undefined,
-      giveawayEntry,
       unsubscribeUrl: `${appUrl}/api/community/unsubscribe?id=${memberId}`,
     })
 
-    const sent = await sendEmail({ from: event?.fromEmail, to: email, ...welcome })
+    const sent = await sendEmail({ to: email, ...welcome })
     if (sent) {
       await supabase
         .from('community_members')
         .update({ welcome_sent_at: new Date().toISOString() })
         .eq('id', memberId)
-    }
-  }
-
-  // Walk-up interest: ping the artist immediately, Reply-To set to the client
-  // so the artist's normal inbox reply goes straight to them — no dashboard.
-  if (body.intent === 'walkup') {
-    const note = (body.note ?? '').trim().slice(0, 2000)
-    const artistInbox = event?.notifyEmail ?? process.env.ARTIST_NOTIFICATION_EMAIL
-    if (artistInbox) {
-      const where = event ? `${event.eventTitle} · ${event.city}` : source
-      await sendEmail({
-        from: event?.fromEmail,
-        to: artistInbox,
-        subject: `🔥 Walk-up interest${name ? `: ${name}` : ''} — ${where}`,
-        html: `<p><strong>${name ?? 'Someone'}</strong> scanned your booth QR and wants a tattoo <strong>this weekend</strong>.</p>
-${note ? `<p>Their idea: &ldquo;${note.replace(/</g, '&lt;')}&rdquo;</p>` : ''}
-<p>Email: ${email}</p>
-<p><strong>Just hit reply</strong> — your reply goes straight to them.</p>`,
-        text: `${name ?? 'Someone'} scanned your booth QR and wants a tattoo this weekend.\n${note ? `Their idea: "${note}"\n` : ''}Email: ${email}\n\nJust hit reply — your reply goes straight to them.`,
-        replyTo: email,
-      })
-      if (event?.smsNumber) {
-        await sendSms({
-          to: event.smsNumber,
-          text: `🔥 Walk-up wants ink${name ? ` (${name})` : ''}${note ? ` — "${note}"` : ''}. Reply to the email to reach them.`,
-        })
-      }
     }
   }
 

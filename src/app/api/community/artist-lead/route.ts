@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/resend'
+import { checkAbuse, isBot } from '@/lib/rate-limit'
 
 // Artist / shop-owner waitlist for the platform ("I want this for my work").
 // Fed by /artists on this app and /for-artists on artist presence sites.
@@ -39,11 +40,19 @@ interface LeadBody {
 export async function POST(req: Request) {
   const headers = corsHeaders(req)
 
+  const limited = checkAbuse('artist-lead', req, { max: 3, windowMs: 10 * 60_000, maxPerDay: 60 }, headers)
+  if (limited) return limited
+
   let body: LeadBody
   try {
     body = await req.json()
   } catch {
     return Response.json({ error: 'Invalid JSON' }, { status: 400, headers })
+  }
+
+  // Report success to bots so they stop retrying and learn nothing.
+  if (isBot(body as Record<string, unknown>)) {
+    return Response.json({ ok: true }, { headers })
   }
 
   const email = (body.email ?? '').trim().toLowerCase()
