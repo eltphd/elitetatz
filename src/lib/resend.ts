@@ -43,7 +43,11 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body,
       })
-      if (res.ok) return true
+      if (res.ok) {
+        const id = await res.json().then((j: { id?: string }) => j?.id).catch(() => undefined)
+        console.log(`resend ok id=${id ?? '?'} to=${args.to} subject="${args.subject}"`)
+        return true
+      }
       const detail = await res.text().catch(() => '')
       console.warn(`resend ${res.status} to=${args.to} subject="${args.subject}" ${detail.slice(0, 200)}`)
       if (res.status !== 429) return false
