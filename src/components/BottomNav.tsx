@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Home, Search, Sparkles, Zap, User } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -11,7 +12,19 @@ const NAV_ITEMS = [
   { href: '/profile', icon: User, label: 'Me', key: 'profile' },
 ]
 
-export function BottomNav({ active }: { active: string }) {
+// Contained, single-purpose flows get no marketplace tab bar: the artist
+// landing page, the inquiry/deposit funnel and the concierge chat.
+const HIDDEN_PREFIXES = ['/rawsunart', '/inquiry', '/deposit', '/agent']
+
+function isHiddenPath(pathname: string): boolean {
+  return HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+}
+
+export function BottomNav({ active, hidden = false }: { active: string; hidden?: boolean }) {
+  // usePathname is null outside the App Router (e.g. unit tests).
+  const pathname = usePathname() ?? ''
+  if (hidden || isHiddenPath(pathname)) return null
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-md border-t border-[#2a2a2a]"

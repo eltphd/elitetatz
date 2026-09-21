@@ -1,9 +1,26 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Clock, DollarSign, Sparkles, AtSign, Mail, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import Image from 'next/image'
+import { MapPin, Clock, DollarSign, Sparkles, AtSign, Mail, Phone, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+
+// Studio facts as Lacey publishes them today (rawsunart.com, Google Business
+// Profile). ARTIST_CONFIG carries rates and the deposit policy; the location,
+// hours and handle below are the canonical values for the pilot.
+const STUDIO = {
+  name: 'AION Tattoo',
+  address: '2719 Sawbury Blvd',
+  cityStateZip: 'Dublin, OH 43235',
+  hours: 'Wednesday–Saturday, 12–6',
+  hoursNote: 'Additional hours by appointment only',
+  instagram: '@raw.sun.art',
+  phoneDisplay: '614-858-5574',
+  phoneTel: '+16148585574',
+}
+
+const DEPOSIT_DOLLARS = ARTIST_CONFIG.depositCents / 100
 
 const STYLES = [
   { label: 'Watercolor', description: 'Her signature. Vivid color washes, soft edges, painterly movement.', icon: '🎨' },
@@ -19,11 +36,15 @@ const FAQS = [
   },
   {
     q: 'What does the deposit cover?',
-    a: `$${ARTIST_CONFIG.depositCents / 100} per person, applied to your final price as long as you show up as scheduled. Non-refundable for no-shows or last-minute cancellations.`,
+    a: `$${DEPOSIT_DOLLARS} per person, applied to your final price as long as you show up as scheduled. Non-refundable for no-shows or last-minute cancellations.`,
   },
   {
     q: 'How do you price tattoos?',
     a: `Around $${ARTIST_CONFIG.hourlyRate}/hr, or quoted as a project total depending on complexity. Minimum is one hour ($${ARTIST_CONFIG.hourlyRate}). Custom quotes given after I know size, placement, and style.`,
+  },
+  {
+    q: 'When are you in the studio?',
+    a: `${STUDIO.hours} at ${STUDIO.name}, ${STUDIO.address}, ${STUDIO.cityStateZip}. ${STUDIO.hoursNote}.`,
   },
   {
     q: 'Can I bring my own reference?',
@@ -64,25 +85,33 @@ export default function RawSunArtPage() {
     <div className="min-h-dvh bg-[#0a0a0a] text-white">
 
       {/* Hero */}
-      <div className="relative">
-        {/* Gradient background placeholder — swap for real portfolio image */}
-        <div className="h-72 bg-gradient-to-br from-[#1a1400] via-[#0a0a0a] to-[#1a0a1a] flex items-end">
-          <div className="absolute inset-0 opacity-30"
-            style={{ background: 'radial-gradient(ellipse at 30% 60%, #c9a84c33 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, #a84cc933 0%, transparent 50%)' }}
-          />
-          <div className="relative px-5 pb-6 w-full max-w-lg mx-auto">
-            <div className="flex items-end gap-4">
-              {/* Avatar placeholder */}
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#c9a84c] to-[#a84c8c] flex items-center justify-center text-3xl shrink-0 shadow-lg">
-                🎨
-              </div>
-              <div>
-                <p className="text-xs text-[#c9a84c] font-medium tracking-widest uppercase mb-1">RawSunArt</p>
-                <h1 className="text-2xl font-bold leading-tight">Lacey Rawson</h1>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#6b6b6b]" />
-                  <span className="text-xs text-[#6b6b6b]">{ARTIST_CONFIG.studio} · {ARTIST_CONFIG.city}, {ARTIST_CONFIG.state}</span>
-                </div>
+      <div className="relative h-72 overflow-hidden">
+        <Image
+          src="/artists/rawsunart-hero.webp"
+          alt="Watercolor butterfly tattoo by Lacey Rawson"
+          width={1080}
+          height={1350}
+          priority
+          sizes="(max-width: 640px) 100vw, 640px"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/55 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-6 w-full max-w-lg mx-auto">
+          <div className="flex items-end gap-4">
+            <Image
+              src="/artists/lacey.webp"
+              alt="Lacey Rawson"
+              width={1000}
+              height={1250}
+              sizes="80px"
+              className="w-20 h-20 rounded-2xl object-cover shrink-0 shadow-lg border border-[#2a2a2a]"
+            />
+            <div>
+              <p className="text-xs text-[#c9a84c] font-medium tracking-widest uppercase mb-1">{ARTIST_CONFIG.handle}</p>
+              <h1 className="text-2xl font-bold leading-tight">{ARTIST_CONFIG.name}</h1>
+              <div className="flex items-center gap-1.5 mt-1">
+                <MapPin className="w-3.5 h-3.5 text-[#9b9b9b]" />
+                <span className="text-xs text-[#9b9b9b]">{STUDIO.name} · {STUDIO.cityStateZip}</span>
               </div>
             </div>
           </div>
@@ -110,8 +139,8 @@ export default function RawSunArtPage() {
         {/* Bio */}
         <p className="mt-5 text-sm text-[#9b9b9b] leading-relaxed">
           Custom tattoos only. Every piece is drawn for you — your concept, your body, your story.
-          Watercolor is the signature: vivid, painterly, built to last. Based in{' '}
-          {ARTIST_CONFIG.city}, {ARTIST_CONFIG.state} at {ARTIST_CONFIG.studio}.
+          Watercolor is the signature: vivid, painterly, built to last. Tattooing out of{' '}
+          {STUDIO.name} in {ARTIST_CONFIG.city}, {ARTIST_CONFIG.state}.
         </p>
 
         {/* Primary CTA */}
@@ -132,13 +161,13 @@ export default function RawSunArtPage() {
             <DollarSign className="w-4 h-4 text-[#c9a84c] mb-2" />
             <p className="text-xs text-[#6b6b6b] mb-0.5">Starting rate</p>
             <p className="text-sm font-semibold">${ARTIST_CONFIG.hourlyRate}/hr</p>
-            <p className="text-[11px] text-[#6b6b6b] mt-0.5">Project quotes available</p>
+            <p className="text-[11px] text-[#6b6b6b] mt-0.5">${DEPOSIT_DOLLARS} deposit to hold</p>
           </div>
           <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4">
             <Clock className="w-4 h-4 text-[#c9a84c] mb-2" />
-            <p className="text-xs text-[#6b6b6b] mb-0.5">Booking</p>
-            <p className="text-sm font-semibold">By appointment</p>
-            <p className="text-[11px] text-[#6b6b6b] mt-0.5">$100 deposit to hold</p>
+            <p className="text-xs text-[#6b6b6b] mb-0.5">Studio hours</p>
+            <p className="text-sm font-semibold">{STUDIO.hours}</p>
+            <p className="text-[11px] text-[#6b6b6b] mt-0.5">{STUDIO.hoursNote}</p>
           </div>
         </div>
 
@@ -165,7 +194,7 @@ export default function RawSunArtPage() {
             {[
               { n: '1', title: 'Tell the AI your concept', body: "EliteTatz collects your idea, size, placement, style, and reference. Takes 5 minutes." },
               { n: '2', title: 'Lacey reviews and quotes', body: "She reviews your inquiry and sends a quote. You won't get a sketch yet — design is part of your session." },
-              { n: '3', title: 'Deposit locks your time', body: "$100 reserves your appointment and is credited toward your final price." },
+              { n: '3', title: 'Deposit locks your time', body: `$${DEPOSIT_DOLLARS} reserves your appointment and is credited toward your final price.` },
               { n: '4', title: 'Come in, create together', body: "She goes over the design with you before anything touches skin. No surprises." },
             ].map(({ n, title, body }) => (
               <div key={n} className="flex gap-4 items-start">
@@ -196,11 +225,20 @@ export default function RawSunArtPage() {
           <p className="text-xs text-[#6b6b6b] uppercase tracking-widest font-medium mb-4">Find Her</p>
           <div className="space-y-3">
             <a
-              href={`https://instagram.com/${ARTIST_CONFIG.instagram.replace('@', '')}`}
+              href={`https://instagram.com/${STUDIO.instagram.replace('@', '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-3 hover:text-[#c9a84c] transition-colors"
             >
               <AtSign className="w-4 h-4 text-[#6b6b6b]" />
-              <span className="text-sm">{ARTIST_CONFIG.instagram}</span>
+              <span className="text-sm">{STUDIO.instagram}</span>
+            </a>
+            <a
+              href={`tel:${STUDIO.phoneTel}`}
+              className="flex items-center gap-3 hover:text-[#c9a84c] transition-colors"
+            >
+              <Phone className="w-4 h-4 text-[#6b6b6b]" />
+              <span className="text-sm">{STUDIO.phoneDisplay}</span>
             </a>
             <a
               href={`mailto:${ARTIST_CONFIG.email}`}
@@ -209,9 +247,19 @@ export default function RawSunArtPage() {
               <Mail className="w-4 h-4 text-[#6b6b6b]" />
               <span className="text-sm">{ARTIST_CONFIG.email}</span>
             </a>
-            <div className="flex items-center gap-3 text-[#6b6b6b]">
-              <MapPin className="w-4 h-4" />
-              <span className="text-sm">{ARTIST_CONFIG.studio} · {ARTIST_CONFIG.city}, {ARTIST_CONFIG.state}</span>
+            <div className="flex items-start gap-3 text-[#9b9b9b]">
+              <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="text-sm">
+                {STUDIO.name}<br />
+                {STUDIO.address}, {STUDIO.cityStateZip}
+              </span>
+            </div>
+            <div className="flex items-start gap-3 text-[#9b9b9b]">
+              <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="text-sm">
+                {STUDIO.hours}<br />
+                <span className="text-[#6b6b6b]">{STUDIO.hoursNote}</span>
+              </span>
             </div>
           </div>
         </div>

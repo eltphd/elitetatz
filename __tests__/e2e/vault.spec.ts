@@ -11,7 +11,7 @@ test.describe('The Vault', () => {
 
   test('renders asset cards', async ({ page }) => {
     const assets = page.locator('[data-testid^="vault-asset-"]')
-    await expect(assets).toHaveCountGreaterThan(0)
+    expect(await assets.count()).toBeGreaterThan(0)
   })
 
   test('filter tabs are visible', async ({ page }) => {
