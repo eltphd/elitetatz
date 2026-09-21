@@ -42,3 +42,6 @@ next-env.d.ts
 
 # committed template of the env vars above
 !.env.example
+
+# agent worktrees
+.claude/worktrees/

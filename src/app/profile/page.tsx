@@ -7,7 +7,7 @@ import Link from 'next/link'
 const MENU_ITEMS = [
   { icon: Star, label: 'My Matches', sub: '3 active requests', href: '/matches' },
   { icon: Heart, label: 'Saved Artists', sub: '8 artists saved', href: '/saved' },
-  { icon: Shield, label: 'Payment Methods', sub: 'Add card for booking', href: '/payment' },
+  { icon: Shield, label: 'Payment Methods', sub: 'Add card for booking', href: '/settings' },
   { icon: Settings, label: 'Settings', sub: 'Notifications, privacy', href: '/settings' },
 ]
 
