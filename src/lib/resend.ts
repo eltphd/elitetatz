@@ -15,10 +15,15 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
   const key = process.env.RESEND_API_KEY
   if (!key) return false
 
+  // The From domain must be verified in Resend or the send is rejected.
+  // rawsunart.com is the domain verified today; elitetatz.com is not, so it
+  // must never be the silent fallback. Override per deployment with
+  // DEFAULT_FROM_EMAIL (or COMMUNITY_FROM_EMAIL for Collectors Club mail).
   const from =
     args.from ??
     process.env.COMMUNITY_FROM_EMAIL ??
-    'EliteTatz <noreply@elitetatz.com>'
+    process.env.DEFAULT_FROM_EMAIL ??
+    'RawSunArt <club@rawsunart.com>'
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
