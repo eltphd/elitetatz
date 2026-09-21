@@ -117,8 +117,10 @@ export async function POST(req: Request) {
     })
 
     const link = inquiryUrl(match.id)
+    // Sequential on purpose: Resend rate-limits bursts, and the artist's copy
+    // is the one that must not be lost.
+    await notifyLacey(brief, match.id, { clientName, clientEmail, clientPhone })
     await Promise.all([
-      notifyLacey(brief, match.id, { clientName, clientEmail, clientPhone }),
       notifyClient({
         email: clientEmail || null,
         phone: clientPhone || null,

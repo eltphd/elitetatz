@@ -25,26 +25,35 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
     process.env.DEFAULT_FROM_EMAIL ??
     'RawSunArt <club@rawsunart.com>'
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: args.to,
-        subject: args.subject,
-        html: args.html,
-        text: args.text,
-        reply_to: args.replyTo,
-      }),
-    })
-    return res.ok
-  } catch {
-    return false
+  const body = JSON.stringify({
+    from,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+    reply_to: args.replyTo,
+  })
+
+  // Resend allows ~2 requests/second. Retry once on 429 so two notifications
+  // fired back to back (artist + client) do not silently lose one.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body,
+      })
+      if (res.ok) return true
+      const detail = await res.text().catch(() => '')
+      console.warn(`resend ${res.status} to=${args.to} subject="${args.subject}" ${detail.slice(0, 200)}`)
+      if (res.status !== 429) return false
+    } catch (err) {
+      console.warn('resend fetch failed', err)
+      return false
+    }
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)))
   }
+  return false
 }
 
 interface WelcomeEmailArgs {
