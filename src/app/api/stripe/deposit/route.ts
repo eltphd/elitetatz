@@ -23,6 +23,9 @@ export async function POST(req: Request) {
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!verifyMatch(matchId, t)) return Response.json({ error: 'Invalid or expired link' }, { status: 403 })
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return Response.json({ error: 'Payments are not configured yet' }, { status: 503 })
+  }
   const supabase = createAdminClient()
   if (!supabase) return Response.json({ error: 'Service unavailable' }, { status: 503 })
 

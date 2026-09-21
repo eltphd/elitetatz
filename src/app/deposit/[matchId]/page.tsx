@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { verifyMatch } from '@/lib/tokens'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { DepositClient } from './DepositClient'
 
 // Anonymous client, signed link. The token travels with every request the
@@ -22,6 +24,17 @@ export default async function DepositPage({
   const t = first((await searchParams).t)
   const valid = verifyMatch(matchId, t)
 
+  // Quote and dates render server-side so the client sees them even before
+  // Stripe loads (or if payments are not configured yet).
+  let quote: { price: number | null; dates: string | null; concept: string } | null = null
+  if (valid) {
+    const admin = createAdminClient()
+    const { data } = admin
+      ? await admin.from('matches').select('offered_price_cents, proposed_dates, ai_summary, status').eq('id', matchId).single()
+      : { data: null }
+    if (data) quote = { price: data.offered_price_cents ?? null, dates: data.proposed_dates ?? null, concept: data.ai_summary ?? '' }
+  }
+
   return (
     <div className="min-h-dvh bg-[#0a0a0a] text-white">
       <header className="px-4 py-3 border-b border-[#2a2a2a]">
@@ -42,7 +55,24 @@ export default async function DepositPage({
       </header>
 
       {valid && t ? (
-        <DepositClient matchId={matchId} t={t} />
+        <>
+          {quote && (
+            <section className="max-w-lg mx-auto px-4 pt-6">
+              <div className="rounded-2xl border border-[#2a2a2a] bg-[#141414] p-4">
+                {quote.concept && <p className="text-sm text-[#9b9b9b] mb-1">{quote.concept}</p>}
+                {quote.price != null && (
+                  <p className="text-lg font-bold">
+                    Quote: ${(quote.price / 100).toLocaleString()}
+                    <span className="text-sm font-normal text-[#9b9b9b]"> · ${ARTIST_CONFIG.depositCents / 100} deposit today</span>
+                  </p>
+                )}
+                {quote.dates && <p className="text-sm mt-2"><span className="text-[#9b9b9b]">Proposed dates:</span> {quote.dates}</p>}
+                <p className="text-xs text-[#6b6b6b] mt-2">The deposit comes off your final price. The balance is paid at the studio.</p>
+              </div>
+            </section>
+          )}
+          <DepositClient matchId={matchId} t={t} />
+        </>
       ) : (
         <main className="max-w-lg mx-auto px-4 pt-10 pb-12 text-center">
           <h2 className="text-lg font-bold mb-2">This deposit link isn&apos;t valid</h2>
