@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   const inquiry = inquiryUrl(matchId)
   try {
     if (action === 'accept') {
-      const deposit = depositUrl(matchId)
+      const deposit = (process.env.STRIPE_SECRET_KEY ? depositUrl(matchId) : null)
       const quote = money(priceCents)
       await notifyClient({
         email: match.client_email,
@@ -135,8 +135,7 @@ ${firstName} reviewed your idea (${concept}) and wants to do it.
 
 Quote: ${quote}
 ${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
-Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:
-${deposit}
+${deposit ? `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:\n${deposit}` : `${firstName} will send your ${money(ARTIST_CONFIG.depositCents)} deposit link separately to hold the spot.`}
 
 ${ARTIST_CONFIG.depositPolicy}
 
@@ -144,7 +143,7 @@ Questions, or want a different date? Reply on your inquiry page:
 ${inquiry}
 
 — ${ARTIST_CONFIG.handle}`,
-        sms: `${ARTIST_CONFIG.handle}: ${firstName} accepted your piece at ${quote}${proposedDates ? ` (${proposedDates})` : ''}. Pay the ${money(ARTIST_CONFIG.depositCents)} deposit to hold it: ${deposit}`,
+        sms: `${ARTIST_CONFIG.handle}: ${firstName} accepted your piece at ${quote}${proposedDates ? ` (${proposedDates})` : ''}. ${deposit ? `Pay the ${money(ARTIST_CONFIG.depositCents)} deposit to hold it: ${deposit}` : `Deposit link coming separately.`}`,
       })
     } else if (action === 'more_info') {
       await notifyClient({

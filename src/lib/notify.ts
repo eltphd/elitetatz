@@ -18,6 +18,12 @@ export async function notifyArtist(args: { subject: string; text: string; sms?: 
     html: html(args.text),
     text: args.text,
   })
+  // Optional second inbox (e.g. the operator) so a lead is never lost to one
+  // mailbox's filtering. Set ARTIST_NOTIFICATION_CC to enable.
+  const cc = process.env.ARTIST_NOTIFICATION_CC
+  if (cc) {
+    await sendEmail({ from: ARTIST_CONFIG.fromEmail, to: cc, subject: `[copy] ${args.subject}`, html: html(args.text), text: args.text })
+  }
   const to = toE164(process.env.ARTIST_SMS_NUMBER ?? ARTIST_CONFIG.smsNumber)
   if (args.sms && to) await sendSms({ to, text: args.sms })
 }

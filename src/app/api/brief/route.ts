@@ -161,7 +161,9 @@ async function notifyLacey(
 
   const text = `New inquiry via your concierge.
 
-Client: ${c.clientName || 'name not given'} · ${c.clientEmail || 'no email'} · ${c.clientPhone || 'no phone'}
+From: ${c.clientName || 'name not given'}
+Email: ${c.clientEmail || 'not given'}
+Phone: ${c.clientPhone || 'not given'}
 Concept: ${concept}
 Style: ${style}
 Placement: ${placement}
@@ -171,13 +173,11 @@ Budget: ${budget} · Deposit ready: ${brief.deposit_ready ? 'yes' : 'not yet'}
 Flags: ${flags}
 Readiness: ${brief.readiness_score ?? 0}/100
 
-Open it and tap Accept, Need more info, or Pass:
-${dashboard}
-
-(match ${matchId})`
+It is waiting in your inbox: ${dashboard}
+Accept with a quote, ask for more info, or pass. Ref ${matchId.slice(0, 8)}.`
 
   await notifyArtist({
-    subject: `New inquiry — ${concept} · ${placement}`,
+    subject: `Inquiry: ${concept} (${placement})`,
     text,
     sms: `New inquiry: ${concept} on ${placement}, ${budget}. Accept / more info / pass at ${dashboard}`,
   })
