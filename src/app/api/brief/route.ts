@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Message } from '@/lib/types'
-import { sendEmail } from '@/lib/resend'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { checkAbuse } from '@/lib/rate-limit'
+import { notifyArtist, notifyClient } from '@/lib/notify'
+import { inquiryUrl, appUrl } from '@/lib/tokens'
 
 // Called by AgentChat when BRIEF_READY fires.
-// Saves the conversation + brief to Supabase, optionally emails Lacey.
+// Persists the conversation + brief, opens a pending match for the artist,
+// and notifies both sides. Clients are anonymous: writes go through the
+// service role, and the client gets a signed inquiry link instead of a login.
 
 interface BriefPayload {
   messages: Message[]
@@ -14,41 +18,43 @@ interface BriefPayload {
   sessionId: string
 }
 
+const str = (v: unknown) => (v == null ? '' : String(v)).trim()
+
 export async function POST(req: Request) {
-  // Emails the artist on every completed brief — same abuse surface as the
-  // community endpoints, so it gets the same limits.
   const limited = checkAbuse('brief', req, { max: 5, windowMs: 10 * 60_000, maxPerDay: 150 })
   if (limited) return limited
 
   try {
     const { messages, brief, mode, sessionId }: BriefPayload = await req.json()
+    if (!brief || !Array.isArray(messages)) {
+      return Response.json({ error: 'Missing brief' }, { status: 400 })
+    }
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const admin = createAdminClient()
+    const session = await createClient()
+    const db = admin ?? session
+    const { data: { user } } = await session.auth.getUser()
 
-    // Resolve or create a client row
+    const clientEmail = str(brief.client_email).toLowerCase() || (user?.email ?? '')
+    const clientName = str(brief.client_name)
+    const clientPhone = str(brief.client_phone)
+
+    // Signed-in clients keep a clients row; anonymous ones live on the match.
     let clientId: string | null = null
     if (user) {
-      const { data: existing } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (existing) {
-        clientId = existing.id
-      } else {
-        const { data: created } = await supabase
+      const { data: existing } = await db.from('clients').select('id').eq('user_id', user.id).single()
+      if (existing) clientId = existing.id
+      else {
+        const { data: created } = await db
           .from('clients')
-          .insert({ user_id: user.id, email: user.email })
+          .insert({ user_id: user.id, email: user.email, name: clientName || null })
           .select('id')
           .single()
         clientId = created?.id ?? null
       }
     }
 
-    // Save conversation
-    const { data: conversation, error: convErr } = await supabase
+    const { data: conversation, error: convErr } = await db
       .from('conversations')
       .insert({
         client_id: clientId,
@@ -60,77 +66,117 @@ export async function POST(req: Request) {
       .select('id')
       .single()
 
-    if (convErr) {
+    if (convErr || !conversation) {
       console.error('conversation insert:', convErr)
       return Response.json({ error: 'DB error' }, { status: 500 })
     }
 
-    // If single-artist mode, create a pending match/lead for Lacey
-    if (mode === 'lacey') {
-      // Find Lacey's artist row
-      const { data: lacey } = await supabase
-        .from('artists')
-        .select('id')
-        .eq('name', 'Lacey Rawson')
-        .single()
-
-      if (lacey) {
-        const { data: match } = await supabase
-          .from('matches')
-          .insert({
-            client_id: clientId,
-            artist_id: lacey.id,
-            conversation_id: conversation.id,
-            status: 'pending',
-            client_brief: JSON.stringify(brief),
-            ai_summary: (brief.concept as string) ?? '',
-            offered_price_cents: 25000, // minimum — Lacey will quote real price
-            placement: (brief.placement as string) ?? '',
-          })
-          .select('id')
-          .single()
-
-        // Notify Lacey: email (full brief) + SMS heads-up (one-liner)
-        if (match) {
-          await notifyLacey(brief, match.id, sessionId)
-        }
-      }
+    if (mode !== 'lacey') {
+      return Response.json({ conversationId: conversation.id })
     }
 
-    return Response.json({ conversationId: conversation.id })
+    const { data: artist, error: artistErr } = await db
+      .from('artists')
+      .select('id, payout_preference')
+      .eq('name', ARTIST_CONFIG.name)
+      .single()
+
+    if (artistErr || !artist) {
+      console.error('artist lookup:', artistErr)
+      return Response.json({ error: 'Artist not configured' }, { status: 500 })
+    }
+
+    const { data: match, error: matchErr } = await db
+      .from('matches')
+      .insert({
+        client_id: clientId,
+        artist_id: artist.id,
+        conversation_id: conversation.id,
+        status: 'pending',
+        client_brief: JSON.stringify(brief),
+        ai_summary: str(brief.concept),
+        offered_price_cents: ARTIST_CONFIG.minimumCents, // placeholder until the artist quotes
+        placement: str(brief.placement),
+        client_name: clientName || null,
+        client_email: clientEmail || null,
+        client_phone: clientPhone || null,
+        payout_target: artist.payout_preference ?? 'artist',
+      })
+      .select('id')
+      .single()
+
+    if (matchErr || !match) {
+      console.error('match insert:', matchErr)
+      return Response.json({ error: 'Could not open inquiry' }, { status: 500 })
+    }
+
+    await db.from('match_messages').insert({
+      match_id: match.id,
+      sender: 'system',
+      body: 'Inquiry opened from the concierge. The brief is attached above.',
+    })
+
+    const link = inquiryUrl(match.id)
+    await Promise.all([
+      notifyLacey(brief, match.id, { clientName, clientEmail, clientPhone }),
+      notifyClient({
+        email: clientEmail || null,
+        phone: clientPhone || null,
+        subject: `Your inquiry with ${ARTIST_CONFIG.name} is in`,
+        text: `Hey ${clientName || 'there'},
+
+Your idea is in front of ${ARTIST_CONFIG.name.split(' ')[0]}. She reviews every inquiry herself and answers here:
+${link}
+
+Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONFIG.depositCents / 100} deposit link appears there, and the deposit comes off your final price.
+
+— ${ARTIST_CONFIG.handle}`,
+        sms: `${ARTIST_CONFIG.handle}: your inquiry is in front of ${ARTIST_CONFIG.name.split(' ')[0]}. Track it here: ${link}`,
+      }),
+    ])
+
+    return Response.json({ conversationId: conversation.id, matchId: match.id, inquiryUrl: link })
   } catch (err) {
     console.error('brief route:', err)
     return Response.json({ error: 'Failed to save brief' }, { status: 500 })
   }
 }
 
-async function notifyLacey(brief: Record<string, unknown>, matchId: string, sessionId: string) {
-  const concept = String(brief.concept ?? 'a new piece')
-  const style = Array.isArray(brief.styles) ? brief.styles.join(', ') : String(brief.styles ?? 'TBD')
-  const placement = String(brief.placement ?? 'TBD')
-  const size = String(brief.size ?? 'TBD')
+async function notifyLacey(
+  brief: Record<string, unknown>,
+  matchId: string,
+  c: { clientName: string; clientEmail: string; clientPhone: string }
+) {
+  const concept = str(brief.concept) || 'a new piece'
+  const style = Array.isArray(brief.styles) ? brief.styles.join(', ') : str(brief.styles) || 'TBD'
+  const placement = str(brief.placement) || 'TBD'
+  const size = str(brief.size) || 'TBD'
   const budget = brief.budget_max_cents ? `$${Number(brief.budget_max_cents) / 100}` : 'TBD'
-  const score = `${brief.readiness_score ?? 0}/100`
+  const flags = Array.isArray(brief.feasibility_flags) && brief.feasibility_flags.length
+    ? brief.feasibility_flags.join('; ')
+    : 'none'
+  const dashboard = `${appUrl()}/dashboard`
 
-  // Full brief by email (branded, verified sender)
-  const emailBody = `New qualified inquiry via your concierge:
+  const text = `New inquiry via your concierge.
 
+Client: ${c.clientName || 'name not given'} · ${c.clientEmail || 'no email'} · ${c.clientPhone || 'no phone'}
 Concept: ${concept}
 Style: ${style}
 Placement: ${placement}
 Size: ${size}
-Has reference: ${brief.has_reference ? 'Yes' : 'No'}
-Budget: ${budget}
-Readiness: ${score}
+Reference: ${brief.has_reference ? 'yes' : 'no'} · Creative freedom: ${brief.creative_freedom ? 'yes' : 'no'}
+Budget: ${budget} · Deposit ready: ${brief.deposit_ready ? 'yes' : 'not yet'}
+Flags: ${flags}
+Readiness: ${brief.readiness_score ?? 0}/100
 
-Just reply to this email to reach them.
-(session ${sessionId} · match ${matchId})`
+Open it and tap Accept, Need more info, or Pass:
+${dashboard}
 
-  await sendEmail({
-    from: ARTIST_CONFIG.fromEmail,
-    to: process.env.ARTIST_NOTIFICATION_EMAIL ?? ARTIST_CONFIG.email,
-    subject: `🎨 New booking — ${concept} · ${placement}`,
-    html: emailBody.replace(/\n/g, '<br>'),
-    text: emailBody,
+(match ${matchId})`
+
+  await notifyArtist({
+    subject: `New inquiry — ${concept} · ${placement}`,
+    text,
+    sms: `New inquiry: ${concept} on ${placement}, ${budget}. Accept / more info / pass at ${dashboard}`,
   })
 }
