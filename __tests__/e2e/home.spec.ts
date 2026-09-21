@@ -20,7 +20,7 @@ test.describe('Home page', () => {
   test('renders artist cards', async ({ page }) => {
     // At least 2 artist cards should be visible
     const cards = page.locator('a[href^="/artist/"]')
-    await expect(cards).toHaveCountGreaterThan(1)
+    expect(await cards.count()).toBeGreaterThan(1)
   })
 
   test('location filter chips are visible', async ({ page }) => {

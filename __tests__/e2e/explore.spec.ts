@@ -11,7 +11,7 @@ test.describe('Explore page', () => {
 
   test('renders artist cards', async ({ page }) => {
     const cards = page.locator('a[href^="/artist/"]')
-    await expect(cards).toHaveCountGreaterThan(1)
+    expect(await cards.count()).toBeGreaterThan(1)
   })
 
   test('search filters artist list', async ({ page }) => {

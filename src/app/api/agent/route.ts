@@ -3,6 +3,7 @@ import { Message, ArtistStyle } from '@/lib/types'
 import { MOCK_ARTISTS } from '@/lib/mock-data'
 import { formatArtistRosterContext, formatRelevantArtists } from '@/lib/artist-context'
 import { buildLaceySystemPrompt } from '@/lib/artists/lacey-rawson'
+import { checkAbuse } from '@/lib/rate-limit'
 
 const client = new Anthropic()
 
@@ -148,6 +149,10 @@ function extractConversationHints(messages: Message[]): ConversationHints {
 }
 
 export async function POST(req: Request) {
+  // The one endpoint that spends model tokens: per-IP window + daily circuit breaker.
+  const limited = checkAbuse('agent', req, { max: 60, windowMs: 10 * 60_000, maxPerDay: 3000 })
+  if (limited) return limited
+
   const { messages, mode }: { messages: Message[]; mode?: string } = await req.json()
 
   const activeMode = mode || SINGLE_ARTIST_MODE
