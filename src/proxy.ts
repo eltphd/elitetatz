@@ -1,19 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { singleArtistMode } from '@/lib/pilot'
 
 function supabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   return Boolean(url && /^https?:\/\//.test(url) && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
 
-// Pilot containment. When SINGLE_ARTIST_MODE is set (any non-empty value
-// other than an explicit off switch) the app runs as one artist's funnel and
-// the mock marketplace must be unreachable: no fictional artists, no dead
-// payment form. Every marketplace surface bounces to the artist landing page.
-function singleArtistMode(): boolean {
-  const v = (process.env.SINGLE_ARTIST_MODE ?? '').trim()
-  return v !== '' && !/^(0|false|off|no)$/i.test(v)
-}
+// In single-artist mode the mock marketplace must be unreachable: no
+// fictional artists, no dead payment form. Every marketplace surface bounces
+// to the artist landing page, and nobody can open a new account.
 
 const SINGLE_ARTIST_HOME = '/rawsunart'
 
@@ -48,6 +44,9 @@ export async function proxy(request: NextRequest) {
 
   if (singleArtistMode() && isMarketplacePath(pathname)) {
     return NextResponse.redirect(new URL(SINGLE_ARTIST_HOME, request.url))
+  }
+  if (singleArtistMode() && pathname.startsWith('/auth/signup')) {
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
   // A missing or malformed Supabase env must degrade to "not signed in",

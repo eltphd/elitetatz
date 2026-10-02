@@ -1,19 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
+import { artistContext } from '@/lib/artist-session'
 
 export async function GET(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await artistContext()
+  if (!ctx.ok) return Response.json({ error: ctx.error }, { status: ctx.status })
+  const { artist, db } = ctx
 
   const { searchParams } = new URL(req.url)
   const matchId = searchParams.get('matchId')
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
 
-  // Verify the match belongs to this artist
-  const { data: artist } = await supabase.from('artists').select('id').eq('user_id', user.id).single()
-  if (!artist) return Response.json({ error: 'Forbidden' }, { status: 403 })
-
-  const { data: match } = await supabase
+  // The artist_id filter is the ownership check.
+  const { data: match } = await db
     .from('matches')
     .select('conversation_id')
     .eq('id', matchId)
@@ -22,7 +19,7 @@ export async function GET(req: Request) {
 
   if (!match?.conversation_id) return Response.json({ messages: [] })
 
-  const { data: conversation } = await supabase
+  const { data: conversation } = await db
     .from('conversations')
     .select('messages')
     .eq('id', match.conversation_id)

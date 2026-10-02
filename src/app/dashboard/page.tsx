@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -89,17 +89,12 @@ function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login?next=/dashboard')
+  const ctx = await artistContext()
+  if (!ctx.ok && ctx.status === 401) redirect('/auth/login?next=/dashboard')
+  if (!ctx.ok) return <NotAnArtist reason={ctx.error} />
+  const { user, artist, db } = ctx
 
-  const { data: artist } = await supabase
-    .from('artists')
-    .select('id, name')
-    .eq('user_id', user.id)
-    .single()
-
-  const { data: rows } = await supabase
+  const { data: rows } = await db
     .from('matches')
     .select(`
       id, status, client_brief, ai_summary, offered_price_cents,
@@ -108,7 +103,7 @@ export default async function DashboardPage() {
       stripe_payment_intent_id,
       clients (id, name, email)
     `)
-    .eq('artist_id', artist?.id ?? '')
+    .eq('artist_id', artist.id)
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -116,7 +111,7 @@ export default async function DashboardPage() {
 
   const threads = new Map<string, ThreadMessage[]>()
   if (leads.length) {
-    const { data: msgs } = await supabase
+    const { data: msgs } = await db
       .from('match_messages')
       .select('id, match_id, sender, body, created_at')
       .in('match_id', leads.map((l) => l.id))
@@ -322,4 +317,15 @@ function Tag({ children, tone }: { children: React.ReactNode; tone?: 'good' | 'w
     : tone === 'warn' ? 'border-amber-800/40 text-amber-300 bg-amber-900/10'
     : 'bg-[#1e1e1e] border-[#2a2a2a] text-[#9b9b9b]'
   return <span className={`text-[10px] px-2 py-0.5 border rounded-full capitalize ${cls}`}>{children}</span>
+}
+
+function NotAnArtist({ reason }: { reason: string }) {
+  return (
+    <div className="min-h-dvh bg-[#0a0a0a] text-white flex items-center justify-center px-6">
+      <div className="max-w-sm text-center">
+        <p className="text-sm font-semibold mb-2">This inbox isn&apos;t available.</p>
+        <p className="text-xs text-[#9b9b9b]">{reason}. If you are the artist, sign in with the email the studio set up for you.</p>
+      </div>
+    </div>
+  )
 }

@@ -1,3 +1,8 @@
+-- ⚠ HISTORICAL — DO NOT RUN ON A LIVE PROJECT.
+-- This file predates migration 006 and creates browser-facing policies that
+-- expose artist contact and payout fields and let any signed-up user write
+-- artist rows. Build a project from supabase/migrations/001…006 in order.
+
 -- TatzAI Database Schema
 
 -- Enable extensions

@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { artistContext } from '@/lib/artist-session'
 import { notifyClient } from '@/lib/notify'
 import { inquiryUrl, depositUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
@@ -26,9 +25,9 @@ const firstName = ARTIST_CONFIG.name.split(' ')[0]
 const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await artistContext()
+  if (!ctx.ok) return Response.json({ error: ctx.error }, { status: ctx.status })
+  const { artist, db } = ctx
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -48,10 +47,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Write the question you want to ask' }, { status: 400 })
   }
 
-  const { data: artist } = await supabase.from('artists').select('id').eq('user_id', user.id).single()
-  if (!artist) return Response.json({ error: 'Not an artist account' }, { status: 403 })
-
-  const { data: match } = await supabase
+  const { data: match } = await db
     .from('matches')
     .select('id, status, client_name, client_email, client_phone, ai_summary, client_brief')
     .eq('id', matchId)
@@ -94,18 +90,21 @@ export async function POST(req: Request) {
   }
   updates.status = nextStatus
 
-  const { error: updErr } = await supabase.from('matches').update(updates).eq('id', matchId)
+  // Scoped to her own match, and only from the status the check above read,
+  // so two taps (or two tabs) cannot both move it.
+  const { data: moved, error: updErr } = await db
+    .from('matches')
+    .update(updates)
+    .eq('id', matchId)
+    .eq('artist_id', artist.id)
+    .eq('status', match.status)
+    .select('id')
   if (updErr) return Response.json({ error: updErr.message }, { status: 500 })
+  if (!moved?.length) return Response.json({ error: 'This inquiry changed. Reload and try again.' }, { status: 409 })
 
-  const admin = createAdminClient()
   const insert = async (table: string, row: Record<string, unknown>) => {
-    const { error } = await supabase.from(table).insert(row)
-    if (error && admin) {
-      const { error: adminErr } = await admin.from(table).insert(row)
-      if (adminErr) console.error(`${table} insert (admin):`, adminErr)
-    } else if (error) {
-      console.error(`${table} insert:`, error)
-    }
+    const { error } = await db.from(table).insert(row)
+    if (error) console.error(`${table} insert:`, error)
   }
 
   await insert('match_messages', { match_id: matchId, sender: 'artist', body: threadBody })

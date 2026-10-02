@@ -4,7 +4,8 @@ import { Message } from '@/lib/types'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { checkAbuse } from '@/lib/rate-limit'
 import { notifyArtist, notifyClient } from '@/lib/notify'
-import { inquiryUrl, appUrl } from '@/lib/tokens'
+import { inquiryUrl, appUrl, linksConfigured, verifyBrief } from '@/lib/tokens'
+import { singleArtistMode } from '@/lib/pilot'
 
 // Called by AgentChat when BRIEF_READY fires.
 // Persists the conversation + brief, opens a pending match for the artist,
@@ -14,6 +15,7 @@ import { inquiryUrl, appUrl } from '@/lib/tokens'
 interface BriefPayload {
   messages: Message[]
   brief: Record<string, unknown>
+  briefToken?: string
   mode?: string
   sessionId: string
 }
@@ -25,14 +27,27 @@ export async function POST(req: Request) {
   if (limited) return limited
 
   try {
-    const { messages, brief, mode, sessionId }: BriefPayload = await req.json()
+    const { messages, brief, briefToken, mode: requestedMode, sessionId }: BriefPayload = await req.json()
     if (!brief || !Array.isArray(messages)) {
       return Response.json({ error: 'Missing brief' }, { status: 400 })
     }
+    // Fail closed before writing anything: without the link secret we could
+    // not give the client a working inquiry link.
+    if (!linksConfigured()) {
+      console.error('brief route: MATCH_TOKEN_SECRET is not set; intake is off')
+      return Response.json({ error: 'Inquiries are paused. Please email the studio.' }, { status: 503 })
+    }
+    // Only a brief our own concierge stream produced, unaltered, may open an
+    // inquiry and send messages to the contact details inside it.
+    if (!verifyBrief(brief, briefToken)) {
+      return Response.json({ error: 'This brief could not be verified. Please start the chat again.' }, { status: 403 })
+    }
+    const mode = singleArtistMode() ? 'lacey' : requestedMode
 
-    const admin = createAdminClient()
+    // The private tables are deny-all; only the service role can write them.
+    const db = createAdminClient()
+    if (!db) return Response.json({ error: 'Inquiries are paused. Please email the studio.' }, { status: 503 })
     const session = await createClient()
-    const db = admin ?? session
     const { data: { user } } = await session.auth.getUser()
 
     const clientEmail = str(brief.client_email).toLowerCase() || (user?.email ?? '')
@@ -84,6 +99,31 @@ export async function POST(req: Request) {
     if (artistErr || !artist) {
       console.error('artist lookup:', artistErr)
       return Response.json({ error: 'Artist not configured' }, { status: 500 })
+    }
+
+    // One open inquiry per contact per day. A repeat (a double submit, or
+    // someone replaying a brief) is recorded but sends nothing and returns no
+    // link, so it cannot be used to message a stranger twice or to read an
+    // existing inquiry.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // Quoted, because phone numbers carry parentheses and commas that the
+    // PostgREST or() grammar would otherwise read as syntax.
+    const q = (v: string) => `"${v.replace(/["\\]/g, '')}"`
+    const contactFilters = [
+      clientEmail ? `client_email.eq.${q(clientEmail)}` : null,
+      clientPhone ? `client_phone.eq.${q(clientPhone)}` : null,
+    ].filter(Boolean)
+    if (contactFilters.length) {
+      const { data: recent } = await db
+        .from('matches')
+        .select('id')
+        .eq('artist_id', artist.id)
+        .gte('created_at', since)
+        .or(contactFilters.join(','))
+        .limit(1)
+      if (recent?.length) {
+        return Response.json({ conversationId: conversation.id, duplicate: true })
+      }
     }
 
     const { data: match, error: matchErr } = await db

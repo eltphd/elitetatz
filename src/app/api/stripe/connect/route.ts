@@ -1,6 +1,7 @@
 import type Stripe from 'stripe'
 import { stripe, artistShareCents, matchConcept } from '@/lib/stripe'
-import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { artistContext } from '@/lib/artist-session'
 import { appUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 
@@ -30,27 +31,22 @@ const ARTIST_COLUMNS =
   'id, name, payout_preference, shop_name, stripe_account_id, shop_stripe_account_id, stripe_onboarding_complete'
 
 async function currentArtist(): Promise<
-  | { artist: ArtistRow; email: string | null; db: Awaited<ReturnType<typeof createClient>> }
+  | { artist: ArtistRow; email: string | null; db: SupabaseClient }
   | { error: Response }
 > {
-  const db = await createClient()
-  const { data: { user } } = await db.auth.getUser()
-  if (!user) return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) }
-
-  const { data: artist } = await db.from('artists').select(ARTIST_COLUMNS).eq('user_id', user.id).single()
-  if (!artist) return { error: Response.json({ error: 'Not an artist account' }, { status: 403 }) }
-
-  return { artist: artist as ArtistRow, email: user.email ?? null, db }
+  const ctx = await artistContext<ArtistRow>(ARTIST_COLUMNS)
+  if (!ctx.ok) return { error: Response.json({ error: ctx.error }, { status: ctx.status }) }
+  return { artist: ctx.artist, email: ctx.user.email ?? null, db: ctx.db }
 }
 
 function columnFor(target: Target): 'stripe_account_id' | 'shop_stripe_account_id' {
   return target === 'shop' ? 'shop_stripe_account_id' : 'stripe_account_id'
 }
 
-// RLS-blocked updates come back with no error and no rows; treat that as a
+// An update that matches no row comes back with no error; treat that as a
 // failure rather than pretending the preference was saved.
 async function updateArtist(
-  db: Awaited<ReturnType<typeof createClient>>,
+  db: SupabaseClient,
   artistId: string,
   patch: Record<string, unknown>
 ): Promise<string | null> {

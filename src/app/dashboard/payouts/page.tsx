@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowLeft, Wallet } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { artistContext } from '@/lib/artist-session'
 import { PayoutsClient } from './PayoutsClient'
 
 // Artist-only. Where Lacey connects the account that receives her 80% and
@@ -17,15 +17,10 @@ export default async function PayoutsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login?next=/dashboard/payouts')
-
-  const { data: artist } = await supabase
-    .from('artists')
-    .select('id, name')
-    .eq('user_id', user.id)
-    .single()
+  const ctx = await artistContext()
+  if (!ctx.ok && ctx.status === 401) redirect('/auth/login?next=/dashboard/payouts')
+  const artist = ctx.ok ? ctx.artist : null
+  const user = ctx.ok ? ctx.user : null
 
   const sp = await searchParams
   const connected = first(sp.connected)
@@ -50,7 +45,7 @@ export default async function PayoutsPage({
             </div>
             <div>
               <p className="text-sm font-bold">Payouts</p>
-              <p className="text-[10px] text-[#6b6b6b]">{artist?.name ?? user.email}</p>
+              <p className="text-[10px] text-[#6b6b6b]">{artist?.name ?? user?.email ?? ''}</p>
             </div>
           </div>
         </div>

@@ -1,5 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { artistContext } from '@/lib/artist-session'
 import { notifyClient } from '@/lib/notify'
 import { inquiryUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
@@ -13,9 +12,9 @@ const str = (v: unknown) => (v == null ? '' : String(v)).trim()
 const firstName = ARTIST_CONFIG.name.split(' ')[0]
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await artistContext()
+  if (!ctx.ok) return Response.json({ error: ctx.error }, { status: ctx.status })
+  const { artist, db } = ctx
 
   let payload: Record<string, unknown>
   try { payload = await req.json() } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -25,10 +24,7 @@ export async function POST(req: Request) {
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!body) return Response.json({ error: 'Message is empty' }, { status: 400 })
 
-  const { data: artist } = await supabase.from('artists').select('id').eq('user_id', user.id).single()
-  if (!artist) return Response.json({ error: 'Not an artist account' }, { status: 403 })
-
-  const { data: match } = await supabase
+  const { data: match } = await db
     .from('matches')
     .select('id, status, client_name, client_email, client_phone, ai_summary')
     .eq('id', matchId)
@@ -37,15 +33,8 @@ export async function POST(req: Request) {
   if (!match) return Response.json({ error: 'Match not found' }, { status: 404 })
 
   const row = { match_id: matchId, sender: 'artist', body }
-  let { data: inserted, error } = await supabase.from('match_messages').insert(row).select('id, created_at').single()
-  if (error) {
-    const admin = createAdminClient()
-    if (!admin) return Response.json({ error: error.message }, { status: 500 })
-    const retry = await admin.from('match_messages').insert(row).select('id, created_at').single()
-    inserted = retry.data
-    error = retry.error
-    if (error) return Response.json({ error: error.message }, { status: 500 })
-  }
+  const { data: inserted, error } = await db.from('match_messages').insert(row).select('id, created_at').single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const inquiry = inquiryUrl(matchId)
   const name = match.client_name || 'there'
