@@ -101,9 +101,12 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
               const data = JSON.parse(line.slice(6))
               if (data.text) {
                 assistantContent += data.text
+                // The updater runs later; hand it this chunk's text, not the
+                // variable the loop keeps appending to.
+                const content = assistantContent
                 setMessages((prev) => {
                   const updated = [...prev]
-                  updated[updated.length - 1] = { ...assistantMsg, content: assistantContent }
+                  updated[updated.length - 1] = { ...assistantMsg, content }
                   return updated
                 })
               }
