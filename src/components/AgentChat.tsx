@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
 import { useRouter } from 'next/navigation'
@@ -49,6 +50,8 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
   const [submitted, setSubmitted] = useState(false)
   const [briefData, setBriefData] = useState<Record<string, unknown> | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(false)
+  const [briefToken, setBriefToken] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -77,6 +80,12 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       let assistantContent = ''
+      // Held locally, not read back from state: state set inside this loop is
+      // not visible to this closure, which is how a ready brief used to be
+      // saved as null and silently dropped.
+      let streamBrief: Record<string, unknown> | null = null
+      let streamBriefToken: string | null = null
+      let streamReady = false
 
       const assistantMsg: Message = { role: 'assistant', content: '', timestamp: new Date().toISOString() }
       setMessages((prev) => [...prev, assistantMsg])
@@ -92,21 +101,35 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
               const data = JSON.parse(line.slice(6))
               if (data.text) {
                 assistantContent += data.text
+                // The updater runs later; hand it this chunk's text, not the
+                // variable the loop keeps appending to.
+                const content = assistantContent
                 setMessages((prev) => {
                   const updated = [...prev]
-                  updated[updated.length - 1] = { ...assistantMsg, content: assistantContent }
+                  updated[updated.length - 1] = { ...assistantMsg, content }
                   return updated
                 })
               }
-              if (data.brief) setBriefData(data.brief)
+              if (data.brief) {
+                streamBrief = data.brief
+                streamBriefToken = data.briefToken ?? null
+                setBriefData(data.brief)
+                setBriefToken(streamBriefToken)
+              }
               if (data.briefReady) {
+                streamReady = true
                 setBriefReady(true)
-                // Fire-and-forget save — don't await in stream loop
-                setTimeout(() => saveBrief([...messages, { role: 'assistant' as const, content: assistantContent, timestamp: new Date().toISOString() }], data.brief ?? briefData), 100)
               }
             } catch {}
           }
         }
+      }
+      if (streamReady) {
+        await saveBrief(
+          [...messages, userMsg, { role: 'assistant' as const, content: assistantContent, timestamp: new Date().toISOString() }],
+          streamBrief ?? briefData,
+          streamBriefToken,
+        )
       }
     } catch {
       setMessages((prev) => [...prev, {
@@ -119,22 +142,26 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
     }
   }
 
-  async function saveBrief(allMessages: Message[], brief: Record<string, unknown> | null) {
-    if (!brief) return
+  async function saveBrief(allMessages: Message[], brief: Record<string, unknown> | null, briefToken: string | null) {
+    if (!brief) { setSaveError(true); return }
     setSaving(true)
+    setSaveError(false)
     try {
-      await fetch('/api/brief', {
+      const res = await fetch('/api/brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, brief, mode, sessionId: getSessionId() }),
+        body: JSON.stringify({ messages: allMessages, brief, briefToken, mode, sessionId: getSessionId() }),
       })
-    } catch { /* non-fatal */ } finally {
+      if (!res.ok) setSaveError(true)
+    } catch {
+      setSaveError(true)
+    } finally {
       setSaving(false)
     }
   }
 
   async function submitBrief() {
-    if (saving) return
+    if (saving || saveError) return
     if (mode === 'lacey') {
       // Contained confirmation — never route a RawSunArt client into the marketplace.
       setSubmitted(true)
@@ -181,9 +208,23 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
                 ? "I've put together your brief. Send it to Lacey and she'll follow up by email with a quote and availability."
                 : "I've put together your tattoo brief. Ready to send it to matching artists?"}
             </p>
+            {saveError && (
+              <div role="alert" className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
+                Your brief didn&apos;t reach Lacey. Try again, or email it to{' '}
+                <span className="select-all font-semibold">{ARTIST_CONFIG.email}</span>.
+                <button
+                  type="button"
+                  onClick={() => saveBrief(messages, briefData, briefToken)}
+                  disabled={saving}
+                  className="mt-2 block font-semibold text-[#c9a84c] underline disabled:opacity-60"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
             <button
               onClick={submitBrief}
-              disabled={saving}
+              disabled={saving || saveError}
               className="flex items-center justify-between w-full bg-[#c9a84c] text-black font-semibold px-4 py-3 rounded-xl text-sm disabled:opacity-60"
             >
               <span>{saving ? 'Saving…' : isLacey ? 'Send to Lacey' : 'Find My Artist'}</span>

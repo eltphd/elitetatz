@@ -3,7 +3,7 @@ export type ArtistStyle =
   | 'geometric' | 'watercolor' | 'japanese' | 'tribal'
   | 'illustrative' | 'fine-line' | 'portrait' | 'cover-up'
 
-export type MatchStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'paid' | 'cancelled'
+export type MatchStatus = 'pending' | 'info_requested' | 'accepted' | 'rejected' | 'paid' | 'booked' | 'completed' | 'cancelled'
 
 export type ProjectStage =
   | 'pending'       // sent to artist, awaiting response

@@ -92,18 +92,23 @@ export async function POST(req: Request) {
     await sendEmail({
       to: notify,
       subject: `🔥 New artist lead: ${name}${lead.city ? ` (${lead.city})` : ''}`,
-      html: `<p><strong>${name}</strong> (${role.replace('_', ' ')}) wants an artist hub.</p>
+      // Every field is visitor input; escape it before it becomes HTML.
+      html: `<p><strong>${esc(name)}</strong> (${esc(role.replace('_', ' '))}) wants an artist hub.</p>
 <ul>
-<li>Email: ${email}</li>
-<li>Instagram: ${lead.instagram ? '@' + lead.instagram : '—'}</li>
-<li>City: ${lead.city ?? '—'}</li>
-<li>Source: ${lead.source}</li>
+<li>Email: ${esc(email)}</li>
+<li>Instagram: ${lead.instagram ? '@' + esc(lead.instagram) : '—'}</li>
+<li>City: ${esc(lead.city ?? '—')}</li>
+<li>Source: ${esc(String(lead.source ?? ''))}</li>
 </ul>
-${lead.message ? `<p>Message: ${lead.message}</p>` : ''}`,
+${lead.message ? `<p>Message: ${esc(lead.message)}</p>` : ''}`,
       text: `${name} (${role}) wants an artist hub. Email: ${email}. IG: ${lead.instagram ?? '—'}. City: ${lead.city ?? '—'}. Source: ${lead.source}. ${lead.message ?? ''}`,
       replyTo: email,
     })
   }
 
   return Response.json({ ok: true }, { headers })
+}
+
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 }

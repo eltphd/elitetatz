@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, Lock, User, Eye, EyeOff, Sparkles, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
-  const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<'client' | 'artist'>('client')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -121,7 +119,7 @@ export default function SignupPage() {
                 <div className="bg-[#141414] border border-[#c9a84c]/20 rounded-xl p-3">
                   <div className="flex items-start gap-2">
                     <Sparkles className="w-4 h-4 text-[#c9a84c] shrink-0 mt-0.5" />
-                    <p className="text-xs text-[#6b6b6b]">Artist accounts are reviewed before going live. After signup you'll complete your full artist profile.</p>
+                    <p className="text-xs text-[#6b6b6b]">Artist accounts are reviewed before going live. After signup you&apos;ll complete your full artist profile.</p>
                   </div>
                 </div>
               )}

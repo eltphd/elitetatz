@@ -16,7 +16,7 @@ test.describe('Flash Drop page', () => {
   test('renders flash design cards', async ({ page }) => {
     // Should have multiple flash cards
     const cards = page.locator('button').filter({ hasText: /\$/ })
-    await expect(cards).toHaveCountGreaterThan(2)
+    expect(await cards.count()).toBeGreaterThan(2)
   })
 
   test('style filter chips work', async ({ page }) => {

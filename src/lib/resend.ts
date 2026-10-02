@@ -15,31 +15,49 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
   const key = process.env.RESEND_API_KEY
   if (!key) return false
 
+  // The From domain must be verified in Resend or the send is rejected.
+  // rawsunart.com is the domain verified today; elitetatz.com is not, so it
+  // must never be the silent fallback. Override per deployment with
+  // DEFAULT_FROM_EMAIL (or COMMUNITY_FROM_EMAIL for Collectors Club mail).
   const from =
     args.from ??
     process.env.COMMUNITY_FROM_EMAIL ??
-    'EliteTatz <noreply@elitetatz.com>'
+    process.env.DEFAULT_FROM_EMAIL ??
+    'RawSunArt <club@rawsunart.com>'
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: args.to,
-        subject: args.subject,
-        html: args.html,
-        text: args.text,
-        reply_to: args.replyTo,
-      }),
-    })
-    return res.ok
-  } catch {
-    return false
+  const body = JSON.stringify({
+    from,
+    to: args.to,
+    subject: args.subject,
+    html: args.html,
+    text: args.text,
+    reply_to: args.replyTo,
+  })
+
+  // Resend allows ~2 requests/second. Retry once on 429 so two notifications
+  // fired back to back (artist + client) do not silently lose one.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body,
+      })
+      if (res.ok) {
+        const id = await res.json().then((j: { id?: string }) => j?.id).catch(() => undefined)
+        console.log(`resend ok id=${id ?? '?'} to=${args.to} subject="${args.subject}"`)
+        return true
+      }
+      const detail = await res.text().catch(() => '')
+      console.warn(`resend ${res.status} to=${args.to} subject="${args.subject}" ${detail.slice(0, 200)}`)
+      if (res.status !== 429) return false
+    } catch (err) {
+      console.warn('resend fetch failed', err)
+      return false
+    }
+    await new Promise((r) => setTimeout(r, 700 * (attempt + 1)))
   }
+  return false
 }
 
 interface WelcomeEmailArgs {

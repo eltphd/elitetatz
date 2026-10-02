@@ -3,6 +3,7 @@ import { AgentChat } from '@/components/AgentChat'
 import { BottomNav } from '@/components/BottomNav'
 import { Sparkles, ArrowLeft } from 'lucide-react'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+import { singleArtistMode } from '@/lib/pilot'
 
 interface Props {
   searchParams: Promise<{ mode?: string }>
@@ -10,7 +11,9 @@ interface Props {
 
 export default async function AgentPage({ searchParams }: Props) {
   const { mode } = await searchParams
-  const isArtistMode = mode === 'rawsunart'
+  // In the pilot every chat is Lacey's: a bare /agent link must not open the
+  // marketplace concierge, whose briefs reach no one.
+  const isArtistMode = mode === 'rawsunart' || singleArtistMode()
 
   return (
     <div className="flex flex-col h-dvh">

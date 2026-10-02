@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { safeNext } from '@/lib/safe-next'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') || '/'
+  const next = safeNext(searchParams.get('next'))
 
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
@@ -37,7 +38,8 @@ function LoginForm() {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email: form.email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=${next}` },
+      // Sign-in only: an unknown address gets no account (the pilot has one artist).
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     })
     setMagicLoading(false)
     if (error) { setError(error.message); return }

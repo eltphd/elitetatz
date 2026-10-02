@@ -1,13 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { linksConfigured, signBrief } from '@/lib/tokens'
+import { singleArtistMode } from '@/lib/pilot'
 import { Message, ArtistStyle } from '@/lib/types'
 import { MOCK_ARTISTS } from '@/lib/mock-data'
 import { formatArtistRosterContext, formatRelevantArtists } from '@/lib/artist-context'
 import { buildLaceySystemPrompt } from '@/lib/artists/lacey-rawson'
+import { checkAbuse } from '@/lib/rate-limit'
 
 const client = new Anthropic()
-
-// Set SINGLE_ARTIST_MODE=lacey in .env.local to run as RawSunArt's concierge
-const SINGLE_ARTIST_MODE = process.env.SINGLE_ARTIST_MODE
 
 function buildSystemPrompt(conversationHints: ConversationHints): string {
   // Build artist context tuned to what we know about the client so far
@@ -148,9 +148,13 @@ function extractConversationHints(messages: Message[]): ConversationHints {
 }
 
 export async function POST(req: Request) {
+  // The one endpoint that spends model tokens: per-IP window + daily circuit breaker.
+  const limited = checkAbuse('agent', req, { max: 60, windowMs: 10 * 60_000, maxPerDay: 3000 })
+  if (limited) return limited
+
   const { messages, mode }: { messages: Message[]; mode?: string } = await req.json()
 
-  const activeMode = mode || SINGLE_ARTIST_MODE
+  const activeMode = singleArtistMode() ? 'lacey' : mode
   const hints = extractConversationHints(messages)
   const systemPrompt = activeMode === 'lacey' ? buildLaceySystemPrompt() : buildSystemPrompt(hints)
 
@@ -187,16 +191,21 @@ export async function POST(req: Request) {
           }
         }
 
-        if (fullText.includes('BRIEF_READY')) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ briefReady: true })}\n\n`))
-        }
-
+        // The brief goes out before briefReady so the client already holds it
+        // when it saves. It carries a signature over its exact contents, which
+        // /api/brief requires: only a brief this stream produced can open an
+        // inquiry and send email or SMS.
         const briefMatch = fullText.match(/```brief\n([\s\S]+?)\n```/)
         if (briefMatch) {
           try {
             const brief = JSON.parse(briefMatch[1])
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ brief })}\n\n`))
+            const briefToken = linksConfigured() ? signBrief(brief) : null
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ brief, briefToken })}\n\n`))
           } catch {}
+        }
+
+        if (fullText.includes('BRIEF_READY')) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ briefReady: true })}\n\n`))
         }
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'))

@@ -6,14 +6,16 @@
 export const ARTIST_CONFIG = {
   name: 'Lacey Rawson',
   handle: 'RawSunArt',
-  studio: 'Aion Tattoo Studio',
+  studio: 'AION Tattoo',
   city: 'Dublin',
   state: 'OH',
   // Update these when she sends new hours:
-  availability: 'Monday–Thursday (hours vary — the agent will ask)',
+  availability: 'Wednesday–Saturday, 12–6, additional hours by appointment only',
+  address: '2719 Sawbury Blvd, Dublin, OH 43235 (private studio inside AION Tattoo)',
+  smsNumber: '+16148585574', // Lacey's real line; override with ARTIST_SMS_NUMBER
   email: 'lacey@rawsunart.com',
   fromEmail: 'RawSunArt <club@rawsunart.com>',
-  instagram: '@rawsunart',
+  instagram: '@raw.sun.art',
   specialties: ['watercolor', 'fine-line', 'illustrative', 'blackwork'],
   primarySpecialty: 'watercolor',
   hourlyRate: 250,
@@ -154,8 +156,11 @@ Before the client gets too excited, gently flag these if they come up:
 - **Extreme fine detail under 2 inches**: may blur with healing — suggest sizing up or simplifying
 - **Pure watercolor with no linework**: fades faster — she typically adds subtle lines to anchor it
 
-## Brief Extraction — Only When All 8 Fields Are Confirmed
-Do NOT fire the brief until you actually have concept + size + placement + style + creative freedom + reference info + budget + deposit readiness. If you're missing any, ask. When you do have everything, tell the client naturally: "Cool — I have everything I need. Let me put this together for Lacey." Then summarize and include this hidden JSON:
+## Contact — The 9th Field
+Before you fire the brief, get the client's first name, email, and a mobile number for texts. Ask once, plainly: "Last thing — what name, email and cell should Lacey use to reach you? She replies by email and texts a heads-up." If they only give one channel, that is fine; do not nag.
+
+## Brief Extraction — Only When All 9 Fields Are Confirmed
+Do NOT fire the brief until you actually have concept + size + placement + style + creative freedom + reference info + budget + deposit readiness + contact. If you're missing any, ask. When you do have everything, tell the client naturally: "Cool — I have everything I need. Let me put this together for Lacey. You'll get an email with a link to your inquiry, and she'll answer there." Then summarize and include this hidden JSON:
 
 \`\`\`brief
 {
@@ -169,11 +174,14 @@ Do NOT fire the brief until you actually have concept + size + placement + style
   "budget_max_cents": 0,
   "deposit_ready": false,
   "feasibility_flags": [],
+  "client_name": "...",
+  "client_email": "...",
+  "client_phone": "...",
   "readiness_score": 85
 }
 \`\`\`
 
-Set readiness_score 0–100. If >= 70, include BRIEF_READY in your response.
+Set readiness_score 0–100. If >= 70 AND you have at least an email or phone, include BRIEF_READY in your response.
 
 ## Rules
 - Keep responses short. This is a mobile chat, not email.
