@@ -6,6 +6,18 @@ import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
 import { useRouter } from 'next/navigation'
 
+// The model writes the brief as a fenced ```brief block plus a BRIEF_READY
+// marker. The server strips them per chunk, which misses a block split across
+// chunks, so the client hides them from the whole reply before rendering.
+// The saved conversation keeps the full text for Lacey's record.
+function visibleReply(text: string): string {
+  return text
+    .replace(/```brief[\s\S]*?(?:```|$)/g, '')
+    .replace(/BRIEF_READY/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function getSessionId() {
   if (typeof window === 'undefined') return ''
   let id = sessionStorage.getItem('tatzai_session')
@@ -103,7 +115,7 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
                 assistantContent += data.text
                 // The updater runs later; hand it this chunk's text, not the
                 // variable the loop keeps appending to.
-                const content = assistantContent
+                const content = visibleReply(assistantContent)
                 setMessages((prev) => {
                   const updated = [...prev]
                   updated[updated.length - 1] = { ...assistantMsg, content }
