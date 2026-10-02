@@ -45,11 +45,11 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
       })
       if (res.ok) {
         const id = await res.json().then((j: { id?: string }) => j?.id).catch(() => undefined)
-        console.log(`resend ok id=${id ?? '?'} to=${args.to} subject="${args.subject}"`)
+        console.log(`resend ok id=${id ?? '?'} to=${maskEmail(args.to)}`)
         return true
       }
       const detail = await res.text().catch(() => '')
-      console.warn(`resend ${res.status} to=${args.to} subject="${args.subject}" ${detail.slice(0, 200)}`)
+      console.warn(`resend ${res.status} to=${maskEmail(args.to)} ${detail.slice(0, 200)}`)
       if (res.status !== 429) return false
     } catch (err) {
       console.warn('resend fetch failed', err)
@@ -123,4 +123,10 @@ Follow along: ${a.instagramUrl}
 Unsubscribe: ${a.unsubscribeUrl}`
 
   return { subject, html, text }
+}
+
+// Delivery tracing needs the message id, not the person. Client addresses and
+// subjects (which carry the tattoo concept) stay out of Vercel's logs.
+function maskEmail(to: string): string {
+  return to.replace(/^(.).*(@.*)$/, '$1***$2')
 }
