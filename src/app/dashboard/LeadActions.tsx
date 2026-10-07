@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, HelpCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign } from 'lucide-react'
 
 // Three buttons. Accept opens quote + dates + note; Need more info opens a
 // question box; Pass opens an optional note. One tap each after the fields.
@@ -10,12 +10,12 @@ import { CheckCircle, HelpCircle, XCircle, Loader2 } from 'lucide-react'
 // server page refreshes so the lead lands in the right group.
 
 type Panel = 'idle' | 'accept' | 'more_info' | 'decline'
-type Done = 'accepted' | 'info_requested' | 'rejected'
+type Done = 'accepted' | 'info_requested' | 'rejected' | 'paid'
 
 const INPUT =
   'w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#6b6b6b] outline-none focus:border-[#c9a84c]/40 transition-colors'
 
-export function LeadActions({ matchId, status }: { matchId: string; status: 'pending' | 'info_requested' }) {
+export function LeadActions({ matchId, status }: { matchId: string; status: 'pending' | 'info_requested' | 'accepted' }) {
   const router = useRouter()
   const [panel, setPanel] = useState<Panel>('idle')
   const [done, setDone] = useState<Done | null>(null)
@@ -25,8 +25,9 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
   const [note, setNote] = useState('')
   const [question, setQuestion] = useState('')
 
-  async function send(action: 'accept' | 'more_info' | 'decline') {
-    const optimistic: Done = action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : 'rejected'
+  async function send(action: 'accept' | 'more_info' | 'decline' | 'deposit_received') {
+    const optimistic: Done =
+      action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : action === 'deposit_received' ? 'paid' : 'rejected'
     setSubmitting(true)
     setDone(optimistic)
     try {
@@ -54,6 +55,13 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
     }
   }
 
+  if (done === 'paid') {
+    return (
+      <Result icon={<BadgeDollarSign className="w-4 h-4 text-green-400" />} cls="text-green-400">
+        Deposit received — client notified, confirm the date in the thread
+      </Result>
+    )
+  }
   if (done === 'accepted') {
     return (
       <Result icon={<CheckCircle className="w-4 h-4 text-green-400" />} cls="text-green-400">
@@ -143,6 +151,21 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
           </button>
         </div>
       </div>
+    )
+  }
+
+  if (status === 'accepted') {
+    // Deposit is collected outside the platform (shop checkout) until Stripe is
+    // configured; the artist confirms it here. One tap, with a confirm.
+    return (
+      <button
+        disabled={submitting}
+        onClick={() => { if (confirm('Mark the deposit as received? The client is told their spot is held.')) send('deposit_received') }}
+        className="flex items-center justify-center gap-1.5 w-full bg-[#1e1e1e] border border-green-800/40 text-green-400 font-semibold py-3 rounded-xl text-sm"
+      >
+        {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeDollarSign className="w-3.5 h-3.5" />}
+        Mark deposit received
+      </button>
     )
   }
 

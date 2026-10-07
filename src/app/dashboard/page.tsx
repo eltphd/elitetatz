@@ -7,7 +7,8 @@ import {
 import { LeadActions } from './LeadActions'
 import { ConversationViewer } from './ConversationViewer'
 import type { ThreadMessage } from '@/components/InquiryThread'
-import { depositUrl, inquiryUrl } from '@/lib/tokens'
+import { inquiryUrl } from '@/lib/tokens'
+import { depositLinkFor } from '@/lib/deposit'
 
 // Lacey's inbox. Four groups, three buttons, one thread per lead.
 // Everything is read through her session (RLS), nothing depends on the
@@ -226,8 +227,8 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
   const readiness = Number(brief.readiness_score)
   const flags = Array.isArray(brief.feasibility_flags) ? brief.feasibility_flags.map(String).filter(Boolean) : []
   const pill = STATUS_PILL[lead.status] ?? { label: lead.status, cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' }
-  const actionable = lead.status === 'pending' || lead.status === 'info_requested'
   const depositPaid = ['paid', 'booked', 'completed'].includes(lead.status) || Boolean(lead.stripe_payment_intent_id)
+  const actionable = lead.status === 'pending' || lead.status === 'info_requested' || (lead.status === 'accepted' && !depositPaid)
 
   return (
     <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
@@ -283,7 +284,7 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
         </div>
       )}
 
-      {actionable && <LeadActions matchId={lead.id} status={lead.status as 'pending' | 'info_requested'} />}
+      {actionable && <LeadActions matchId={lead.id} status={lead.status as 'pending' | 'info_requested' | 'accepted'} />}
 
       {!actionable && !CLOSED.includes(lead.status) && (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1">
@@ -295,7 +296,7 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
           {!depositPaid && (
             <div className="pt-1">
               <p className="text-[10px] text-[#6b6b6b] mb-1">Deposit link — resend if the client didn&apos;t get it</p>
-              <code className="block text-[10px] text-[#c9a84c] break-all">{depositUrl(lead.id)}</code>
+              <code className="block text-[10px] text-[#c9a84c] break-all">{depositLinkFor(lead.id).url ?? 'no deposit link configured'}</code>
             </div>
           )}
           <p className="text-[10px] text-[#6b6b6b] pt-1">

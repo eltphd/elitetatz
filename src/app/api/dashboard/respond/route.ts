@@ -1,6 +1,7 @@
 import { artistContext } from '@/lib/artist-session'
 import { notifyClient } from '@/lib/notify'
-import { inquiryUrl, depositUrl } from '@/lib/tokens'
+import { inquiryUrl } from '@/lib/tokens'
+import { depositLinkFor } from '@/lib/deposit'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 
 // The artist's three buttons: Accept (quote + dates), Need more info, Pass.
@@ -8,16 +9,19 @@ import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 // and notification inserts try the session first and fall back to the
 // service role so a missing policy never swallows the record.
 //
-// Body: { matchId, action: 'accept' | 'more_info' | 'decline',
+// Body: { matchId, action: 'accept' | 'more_info' | 'decline' | 'deposit_received',
 //         price_cents?, proposed_dates?, message? }
+// deposit_received: the shop collected the deposit outside the platform
+// (e.g. AION's Square checkout) and the artist confirms it by hand.
 
-type Action = 'accept' | 'more_info' | 'decline'
-const ACTIONS: Action[] = ['accept', 'more_info', 'decline']
+type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received'
+const ACTIONS: Action[] = ['accept', 'more_info', 'decline', 'deposit_received']
 
 // Statuses the artist may still act on. Everything else is a 409.
 const OPEN: Record<string, Action[]> = {
   pending: ['accept', 'more_info', 'decline'],
   info_requested: ['accept', 'more_info', 'decline'],
+  accepted: ['deposit_received'],
 }
 
 const str = (v: unknown) => (v == null ? '' : String(v)).trim()
@@ -82,6 +86,10 @@ export async function POST(req: Request) {
     notifType = 'info_requested'
     updates.artist_response = message
     threadBody = message
+  } else if (action === 'deposit_received') {
+    nextStatus = 'paid'
+    notifType = 'deposit_received'
+    threadBody = `Deposit received — thank you. ${firstName} will confirm your date next.`
   } else {
     nextStatus = 'rejected'
     notifType = 'rejected'
@@ -122,7 +130,7 @@ export async function POST(req: Request) {
   const inquiry = inquiryUrl(matchId)
   try {
     if (action === 'accept') {
-      const deposit = (process.env.STRIPE_SECRET_KEY ? depositUrl(matchId) : null)
+      const { url: deposit, external } = depositLinkFor(matchId)
       const quote = money(priceCents)
       await notifyClient({
         email: match.client_email,
@@ -134,7 +142,7 @@ ${firstName} reviewed your idea (${concept}) and wants to do it.
 
 Quote: ${quote}
 ${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
-${deposit ? `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:\n${deposit}` : `${firstName} will send your ${money(ARTIST_CONFIG.depositCents)} deposit link separately to hold the spot.`}
+${deposit ? (external ? `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit through ${ARTIST_CONFIG.depositCollectedBy}'s secure checkout:\n${deposit}\nOnce it's in, ${firstName} marks it received and confirms your date on your inquiry page.` : `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:\n${deposit}`) : `${firstName} will send your ${money(ARTIST_CONFIG.depositCents)} deposit link separately to hold the spot.`}
 
 ${ARTIST_CONFIG.depositPolicy}
 
@@ -143,6 +151,21 @@ ${inquiry}
 
 — ${ARTIST_CONFIG.handle}`,
         sms: `${ARTIST_CONFIG.handle}: ${firstName} accepted your piece at ${quote}${proposedDates ? ` (${proposedDates})` : ''}. ${deposit ? `Pay the ${money(ARTIST_CONFIG.depositCents)} deposit to hold it: ${deposit}` : `Deposit link coming separately.`}`,
+      })
+    } else if (action === 'deposit_received') {
+      await notifyClient({
+        email: match.client_email,
+        phone: match.client_phone,
+        subject: `Deposit received — ${concept}`,
+        text: `Hey ${name},
+
+Your ${money(ARTIST_CONFIG.depositCents)} deposit is in and your spot is held. ${firstName} will confirm the date on your inquiry page and by text:
+${inquiry}
+
+The deposit comes off your final price. The balance is paid at the studio.
+
+— ${ARTIST_CONFIG.handle}`,
+        sms: `${ARTIST_CONFIG.handle}: deposit received, your spot is held. ${firstName} confirms the date here: ${inquiry}`,
       })
     } else if (action === 'more_info') {
       await notifyClient({
