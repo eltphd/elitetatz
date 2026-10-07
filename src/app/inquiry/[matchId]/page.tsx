@@ -6,6 +6,7 @@ import { depositLinkFor } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { InquiryThread, type ThreadMessage } from '@/components/InquiryThread'
+import { DateRequest } from '@/components/DateRequest'
 
 // The client's page. No account: the signed token in the URL is the proof,
 // and it is checked before a single row is read. Wrong or missing token →
@@ -44,7 +45,7 @@ export default async function InquiryPage({
 
   const { data: match } = await admin
     .from('matches')
-    .select('id, status, offered_price_cents, proposed_dates, appointment_at, ai_summary, client_brief, client_name, stripe_payment_intent_id, created_at')
+    .select('id, status, offered_price_cents, proposed_dates, appointment_at, ai_summary, client_brief, client_name, stripe_payment_intent_id, created_at, design_fee_cents, date_request')
     .eq('id', matchId)
     .single()
   if (!match) return <Shell><InvalidLink /></Shell>
@@ -94,6 +95,10 @@ export default async function InquiryPage({
         appointmentAt={match.appointment_at}
         depositLink={match.status === 'accepted' && !depositPaid ? depositLinkFor(matchId).url : null}
         depositExternal={depositLinkFor(matchId).external}
+        designFeeCents={match.design_fee_cents ?? null}
+        dateRequest={match.date_request ?? null}
+        matchId={matchId}
+        token={token!}
       />
 
       <section className="mt-6">
@@ -116,7 +121,7 @@ export default async function InquiryPage({
 }
 
 function StatusCard({
-  status, depositPaid, priceCents, proposedDates, appointmentAt, depositLink, depositExternal,
+  status, depositPaid, priceCents, proposedDates, appointmentAt, depositLink, depositExternal, designFeeCents, dateRequest, matchId, token,
 }: {
   status: string
   depositPaid: boolean
@@ -125,6 +130,10 @@ function StatusCard({
   appointmentAt: string | null
   depositLink: string | null
   depositExternal: boolean
+  designFeeCents: number | null
+  dateRequest: string | null
+  matchId: string
+  token: string
 }) {
   const base = 'rounded-2xl p-4 border'
 
@@ -161,6 +170,12 @@ function StatusCard({
               <dd className="font-semibold">{money(priceCents)}</dd>
             </div>
           )}
+          {designFeeCents ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#9b9b9b] shrink-0">Design drafts (optional, separate)</dt>
+              <dd className="text-right">{money(designFeeCents)}</dd>
+            </div>
+          ) : null}
           {proposedDates && (
             <div className="flex justify-between gap-3">
               <dt className="text-[#9b9b9b] shrink-0">Proposed dates</dt>
@@ -196,9 +211,12 @@ function StatusCard({
           {appointmentAt ? (
             <>Your appointment is <span className="text-white font-semibold">{fmtDate(appointmentAt)}</span> at {ARTIST_CONFIG.address}.</>
           ) : (
-            <>{firstName} is confirming your date{proposedDates ? ` (${proposedDates})` : ''}. It will show here and you&apos;ll get a text.</>
+            <>Your spot is held. Tell {firstName} which date works and she&apos;ll confirm it. It will show here and you&apos;ll get a text.</>
           )}
         </Row>
+        {!appointmentAt && status !== 'completed' && (
+          <DateRequest matchId={matchId} token={token} artistName={firstName} proposedDates={proposedDates} existing={dateRequest} />
+        )}
         {priceCents != null && (
           <p className="mt-3 text-xs text-[#9b9b9b]">
             Quote {money(priceCents)} · {money(ARTIST_CONFIG.depositCents)} deposit comes off the final price.
