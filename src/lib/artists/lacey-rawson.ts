@@ -21,6 +21,11 @@ export const ARTIST_CONFIG = {
   hourlyRate: 250,
   minimumCents: 25000, // $250 = 1-hour minimum
   depositCents: 10000,  // $100 deposit per person
+  // Until the platform's own Stripe path is configured, deposits are collected
+  // by the shop through its Square checkout (Square merchant name "Timeless
+  // Electric Tattoo Gallery" is AION Tattoo). Override with ARTIST_EXTERNAL_DEPOSIT_URL.
+  depositCollectedBy: 'AION Tattoo',
+  externalDepositUrl: 'https://checkout.square.site/merchant/GMM2GSMCCCY2D/checkout/MPSSIFC33XEZKRNLUS6DZAIG',
   depositPolicy: '$100 deposit per person. Comes off the price of the tattoo as long as you come in as scheduled. Non-refundable and non-transferable if you no-show or cancel without notice.',
 }
 

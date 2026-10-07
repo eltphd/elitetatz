@@ -2,12 +2,13 @@ import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet,
+  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet, Link2,
 } from 'lucide-react'
 import { LeadActions } from './LeadActions'
 import { ConversationViewer } from './ConversationViewer'
 import type { ThreadMessage } from '@/components/InquiryThread'
-import { depositUrl, inquiryUrl } from '@/lib/tokens'
+import { inquiryUrl } from '@/lib/tokens'
+import { depositLinkFor } from '@/lib/deposit'
 
 // Lacey's inbox. Four groups, three buttons, one thread per lead.
 // Everything is read through her session (RLS), nothing depends on the
@@ -30,6 +31,8 @@ interface Lead {
   client_phone: string | null
   proposed_dates: string | null
   appointment_at: string | null
+  design_fee_cents: number | null
+  date_request: string | null
   stripe_payment_intent_id: string | null
   clients: { id: string; name: string | null; email: string | null } | null
 }
@@ -84,6 +87,8 @@ function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
   if (CLOSED.includes(lead.status)) return 'closed'
   if (lead.status === 'pending') return 'needs_you'
   if (!clientOwesNothing(thread)) return 'needs_you'
+  // A paid client who has named a date and is waiting on her final say.
+  if (lead.status === 'paid' && lead.date_request && !lead.appointment_at) return 'needs_you'
   if (BOOKED.includes(lead.status)) return 'booked'
   return 'waiting'
 }
@@ -100,7 +105,7 @@ export default async function DashboardPage() {
       id, status, client_brief, ai_summary, offered_price_cents,
       placement, created_at, artist_response, conversation_id,
       client_name, client_email, client_phone, proposed_dates, appointment_at,
-      stripe_payment_intent_id,
+      design_fee_cents, date_request, stripe_payment_intent_id,
       clients (id, name, email)
     `)
     .eq('artist_id', artist.id)
@@ -150,6 +155,10 @@ export default async function DashboardPage() {
             <Link href="/dashboard/payouts" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Wallet className="w-3.5 h-3.5" />
               Payouts
+            </Link>
+            <Link href="/dashboard/connections" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+              <Link2 className="w-3.5 h-3.5" />
+              Connections
             </Link>
             <Link href="/rawsunart" className="text-xs text-[#9b9b9b] font-medium hidden sm:inline">Portfolio →</Link>
           </nav>
@@ -222,8 +231,10 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
   const readiness = Number(brief.readiness_score)
   const flags = Array.isArray(brief.feasibility_flags) ? brief.feasibility_flags.map(String).filter(Boolean) : []
   const pill = STATUS_PILL[lead.status] ?? { label: lead.status, cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' }
-  const actionable = lead.status === 'pending' || lead.status === 'info_requested'
   const depositPaid = ['paid', 'booked', 'completed'].includes(lead.status) || Boolean(lead.stripe_payment_intent_id)
+  const actionable =
+    lead.status === 'pending' || lead.status === 'info_requested' || (lead.status === 'accepted' && !depositPaid) ||
+    lead.status === 'paid' || lead.status === 'booked'
 
   return (
     <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
@@ -279,7 +290,21 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
         </div>
       )}
 
-      {actionable && <LeadActions matchId={lead.id} status={lead.status as 'pending' | 'info_requested'} />}
+      {(lead.status === 'paid' || lead.status === 'booked') && (
+        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1 mb-3">
+          {lead.offered_price_cents != null && <p><span className="text-[#6b6b6b]">Quote</span> <span className="font-semibold">{money(lead.offered_price_cents)}</span>{lead.design_fee_cents ? <span className="text-[#9b9b9b]"> · drafts {money(lead.design_fee_cents)}</span> : null}</p>}
+          {lead.proposed_dates && <p><span className="text-[#6b6b6b]">You offered</span> {lead.proposed_dates}</p>}
+          {lead.appointment_at && <p><span className="text-[#6b6b6b]">Appointment</span> <span className="text-green-400">{fmtDate(lead.appointment_at)}</span></p>}
+        </div>
+      )}
+      {actionable && (
+        <LeadActions
+          matchId={lead.id}
+          status={lead.status as 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'}
+          dateRequest={lead.date_request}
+          appointmentAt={lead.appointment_at}
+        />
+      )}
 
       {!actionable && !CLOSED.includes(lead.status) && (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1">
@@ -291,7 +316,7 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
           {!depositPaid && (
             <div className="pt-1">
               <p className="text-[10px] text-[#6b6b6b] mb-1">Deposit link — resend if the client didn&apos;t get it</p>
-              <code className="block text-[10px] text-[#c9a84c] break-all">{depositUrl(lead.id)}</code>
+              <code className="block text-[10px] text-[#c9a84c] break-all">{depositLinkFor(lead.id).url ?? 'no deposit link configured'}</code>
             </div>
           )}
           <p className="text-[10px] text-[#6b6b6b] pt-1">
