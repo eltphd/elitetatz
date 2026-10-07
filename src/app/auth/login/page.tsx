@@ -11,13 +11,32 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = safeNext(searchParams.get('next'))
+  const callbackError = searchParams.get('error')
 
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [magicLoading, setMagicLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(
+    callbackError === 'not_artist'
+      ? 'That Google account isn’t linked to an artist account yet. Use the email your studio invite went to, or ask to be added.'
+      : callbackError === 'callback_failed' ? 'Sign-in didn’t finish. Please try again.' : '',
+  )
   const [magicSent, setMagicSent] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  // Sign-in only: Google is asked for name and email, nothing else. Reading
+  // Gmail and Calendar is a separate, explicit step on /dashboard/connections.
+  async function handleGoogle() {
+    setError('')
+    setGoogleLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+    })
+    if (error) { setGoogleLoading(false); setError(error.message) }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -60,7 +79,26 @@ function LoginForm() {
 
   return (
     <form onSubmit={handleLogin} className="space-y-4">
-      {error && <div className="bg-red-900/20 border border-red-800/40 rounded-xl px-4 py-3 text-sm text-red-400">{error}</div>}
+      {error && <div role="alert" className="bg-[#c9a84c]/10 border border-[#c9a84c]/30 rounded-xl px-4 py-3 text-sm text-[#e0c878]">{error}</div>}
+
+      <button type="button" onClick={handleGoogle} disabled={googleLoading}
+        className="w-full flex items-center justify-center gap-2 bg-white hover:bg-[#f2f2f2] text-black font-semibold py-3.5 rounded-2xl text-sm transition-colors disabled:opacity-60">
+        {googleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+          <svg aria-hidden="true" viewBox="0 0 48 48" className="w-4 h-4">
+            <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.8 6C12.3 13.4 17.7 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/>
+            <path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.8-6z"/>
+            <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.8l-7.8 6C6.6 42.6 14.6 48 24 48z"/>
+          </svg>
+        )}
+        Continue with Google
+      </button>
+
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-[#2a2a2a]" />
+        <span className="text-xs text-[#6b6b6b]">or use email</span>
+        <div className="flex-1 h-px bg-[#2a2a2a]" />
+      </div>
 
       <div>
         <label className="text-xs text-[#6b6b6b] mb-1.5 block">Email</label>
