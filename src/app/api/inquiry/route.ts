@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verifyMatch, depositUrl, appUrl } from '@/lib/tokens'
+import { verifyMatch, appUrl } from '@/lib/tokens'
+import { depositLinkFor } from '@/lib/deposit'
 import { notifyArtist } from '@/lib/notify'
 import { checkAbuse } from '@/lib/rate-limit'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
@@ -55,7 +56,9 @@ export async function GET(req: Request) {
     appointment_at: match.appointment_at,
     deposit_cents: ARTIST_CONFIG.depositCents,
     deposit_paid: depositPaid,
-    deposit_url: match.status === 'accepted' && !depositPaid ? depositUrl(matchId) : null,
+    deposit_url: match.status === 'accepted' && !depositPaid ? depositLinkFor(matchId).url : null,
+    deposit_external: match.status === 'accepted' && !depositPaid ? depositLinkFor(matchId).external : false,
+    deposit_collected_by: ARTIST_CONFIG.depositCollectedBy,
     brief: {
       concept: str(brief.concept) || str(match.ai_summary),
       placement: str(brief.placement),

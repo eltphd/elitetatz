@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Sparkles, Clock, HelpCircle, CheckCircle, CalendarCheck, XCircle, ShieldCheck } from 'lucide-react'
 import { verifyMatch, depositUrl } from '@/lib/tokens'
+import { depositLinkFor } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { InquiryThread, type ThreadMessage } from '@/components/InquiryThread'
@@ -91,7 +92,8 @@ export default async function InquiryPage({
         priceCents={match.offered_price_cents}
         proposedDates={match.proposed_dates}
         appointmentAt={match.appointment_at}
-        depositLink={match.status === 'accepted' && !depositPaid ? depositUrl(matchId) : null}
+        depositLink={match.status === 'accepted' && !depositPaid ? depositLinkFor(matchId).url : null}
+        depositExternal={depositLinkFor(matchId).external}
       />
 
       <section className="mt-6">
@@ -114,7 +116,7 @@ export default async function InquiryPage({
 }
 
 function StatusCard({
-  status, depositPaid, priceCents, proposedDates, appointmentAt, depositLink,
+  status, depositPaid, priceCents, proposedDates, appointmentAt, depositLink, depositExternal,
 }: {
   status: string
   depositPaid: boolean
@@ -122,6 +124,7 @@ function StatusCard({
   proposedDates: string | null
   appointmentAt: string | null
   depositLink: string | null
+  depositExternal: boolean
 }) {
   const base = 'rounded-2xl p-4 border'
 
@@ -168,11 +171,17 @@ function StatusCard({
         {depositLink && (
           <a
             href={depositLink}
+            {...(depositExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             className="mt-4 flex items-center justify-center gap-2 w-full bg-[#c9a84c] text-black font-bold py-3.5 rounded-xl text-base"
           >
             <ShieldCheck className="w-4 h-4" />
-            Pay {money(ARTIST_CONFIG.depositCents)} deposit
+            Pay {money(ARTIST_CONFIG.depositCents)} deposit{depositExternal ? ` via ${ARTIST_CONFIG.depositCollectedBy}` : ''}
           </a>
+        )}
+        {depositLink && depositExternal && (
+          <p className="mt-2 text-[11px] text-[#9b9b9b]">
+            You&apos;ll pay on {ARTIST_CONFIG.depositCollectedBy}&apos;s secure checkout. Once {firstName} sees it, she marks it received and this page updates.
+          </p>
         )}
         <p className="mt-3 text-[11px] text-[#6b6b6b] leading-relaxed">{ARTIST_CONFIG.depositPolicy}</p>
         <p className="mt-2 text-[11px] text-[#6b6b6b]">Need a different date? Say so in the thread below.</p>
