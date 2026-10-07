@@ -2,7 +2,7 @@ import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet,
+  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet, Link2,
 } from 'lucide-react'
 import { LeadActions } from './LeadActions'
 import { ConversationViewer } from './ConversationViewer'
@@ -150,6 +150,10 @@ export default async function DashboardPage() {
             <Link href="/dashboard/payouts" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Wallet className="w-3.5 h-3.5" />
               Payouts
+            </Link>
+            <Link href="/dashboard/connections" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+              <Link2 className="w-3.5 h-3.5" />
+              Connections
             </Link>
             <Link href="/rawsunart" className="text-xs text-[#9b9b9b] font-medium hidden sm:inline">Portfolio →</Link>
           </nav>
