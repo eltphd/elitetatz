@@ -6,6 +6,8 @@ import { depositLinkFor } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { InquiryThread, type ThreadMessage } from '@/components/InquiryThread'
+import { InquiryConsent } from '@/components/ConsentChoices'
+import { currentChoices } from '@/lib/consent'
 import { DateRequest } from '@/components/DateRequest'
 
 // The client's page. No account: the signed token in the URL is the proof,
@@ -56,6 +58,12 @@ export default async function InquiryPage({
     .eq('match_id', matchId)
     .order('created_at', { ascending: true })
   const messages = (rows ?? []) as ThreadMessage[]
+
+  const { data: consentRows } = await admin
+    .from('client_consents')
+    .select('scope, granted, created_at')
+    .eq('match_id', matchId)
+  const consent = currentChoices(consentRows ?? [])
 
   let brief: Record<string, unknown> = {}
   try { brief = JSON.parse(match.client_brief ?? '{}') } catch {}
@@ -110,6 +118,11 @@ export default async function InquiryPage({
           clientName={clientName}
           artistName={firstName}
         />
+      </section>
+
+      <section className="mt-6">
+        <p className="text-xs text-[#6b6b6b] uppercase tracking-widest font-medium mb-3">Updates</p>
+        <InquiryConsent matchId={matchId} token={token!} initial={consent} />
       </section>
 
       <footer className="mt-10 text-center text-[10px] text-[#6b6b6b] space-y-1">

@@ -122,6 +122,8 @@ export async function POST(req: Request) {
   const dashboard = `${appUrl()}/dashboard`
   try {
     await notifyArtist(isDateRequest ? {
+      kind: 'Date request',
+      ref: matchId,
       subject: `${name} asked for a date — ${concept}`,
       text: `${name} wants to book ${concept} on:
 
@@ -133,6 +135,8 @@ ${dashboard}
 (match ${matchId})`,
       sms: `${name} asked for a date for "${concept}": ${body.slice(0, 80)} — confirm at ${dashboard}`,
     } : {
+      kind: 'Client reply',
+      ref: matchId,
       subject: `${name} replied — ${concept}`,
       text: `${name} wrote on their inquiry (${concept}, status: ${match.status}):
 

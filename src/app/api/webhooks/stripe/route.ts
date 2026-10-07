@@ -230,6 +230,8 @@ async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent) {
 
   await Promise.allSettled([
     notifyArtist({
+      kind: 'Deposit paid',
+      ref: matchId,
       subject: `Deposit paid — ${client} · ${concept}`,
       text: `${client} just paid the $${depositDollars} deposit for "${concept}".
 ${dates}.

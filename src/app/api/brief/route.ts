@@ -217,6 +217,8 @@ It is waiting in your inbox: ${dashboard}
 Accept with a quote, ask for more info, or pass. Ref ${matchId.slice(0, 8)}.`
 
   await notifyArtist({
+    kind: 'New inquiry',
+    ref: matchId,
     subject: `Inquiry: ${concept} (${placement})`,
     text,
     sms: `New inquiry: ${concept} on ${placement}, ${budget}. Accept / more info / pass at ${dashboard}`,

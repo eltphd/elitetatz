@@ -10,7 +10,9 @@ const html = (text: string) =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>')}</div>`
 
-export async function notifyArtist(args: { subject: string; text: string; sms?: string }) {
+// `kind` and `ref` label the operator copy, which never carries the client's
+// name, contact details or words: the client belongs to the artist.
+export async function notifyArtist(args: { subject: string; text: string; sms?: string; kind: string; ref: string }) {
   await sendEmail({
     from: ARTIST_CONFIG.fromEmail,
     to: process.env.ARTIST_NOTIFICATION_EMAIL ?? ARTIST_CONFIG.email,
@@ -18,11 +20,14 @@ export async function notifyArtist(args: { subject: string; text: string; sms?: 
     html: html(args.text),
     text: args.text,
   })
-  // Optional second inbox (e.g. the operator) so a lead is never lost to one
-  // mailbox's filtering. Set ARTIST_NOTIFICATION_CC to enable.
+  // Optional second inbox (e.g. the operator) so a missed lead gets noticed.
+  // It says that something arrived and nothing about who: the details went
+  // to the artist and stay with her. Set ARTIST_NOTIFICATION_CC to enable.
   const cc = process.env.ARTIST_NOTIFICATION_CC
   if (cc) {
-    await sendEmail({ from: ARTIST_CONFIG.fromEmail, to: cc, subject: `[copy] ${args.subject}`, html: html(args.text), text: args.text })
+    const ref = args.ref.slice(0, 8)
+    const text = `${args.kind} for ${ARTIST_CONFIG.name}, ref ${ref}.\n\nThe details went to her inbox and stay with her. This copy only confirms something arrived.`
+    await sendEmail({ from: ARTIST_CONFIG.fromEmail, to: cc, subject: `[copy] ${args.kind} · ref ${ref}`, html: html(text), text })
   }
   const to = toE164(process.env.ARTIST_SMS_NUMBER ?? ARTIST_CONFIG.smsNumber)
   if (args.sms && to) await sendSms({ to, text: args.sms })
