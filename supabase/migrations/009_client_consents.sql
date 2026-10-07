@@ -1,4 +1,4 @@
--- 007: What a client agreed to, beyond their own inquiry.
+-- 009: What a client agreed to, beyond their own inquiry.
 --
 -- The client belongs to the artist. Sending an inquiry lets the artist answer
 -- it and nothing more; anything else (the artist's own updates, hearing about
