@@ -107,6 +107,14 @@ export default function ArtistsPage() {
           </p>
         </div>
 
+        {/* Pricing — said plainly so it can be compared with a studio's cut */}
+        <div className="mb-10 rounded-2xl border border-[#c9a84c]/30 bg-[#141414] p-5">
+          <p className="text-[10px] uppercase tracking-widest text-[#c9a84c] font-semibold mb-2">What it costs</p>
+          <p className="text-2xl font-bold">$25 per booked lead.</p>
+          <p className="mt-1 text-sm text-[#a0a0a0]">Capped at 10 a month, so never more than $250. A lead counts only when the client&apos;s deposit is in. Inquiries, questions and passes cost nothing, and your clients are never charged. Your deposit link, your studio, your money stay exactly as they are.</p>
+          <p className="mt-3 text-xs text-[#6b6b6b]">For comparison: a studio typically keeps 40% of every piece for the same back-and-forth.</p>
+        </div>
+
         {/* Waitlist */}
         <h2 className="mb-2 text-2xl font-bold">Get your hub</h2>
         <p className="mb-6 text-sm text-[#a0a0a0]">

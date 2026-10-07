@@ -131,6 +131,7 @@ async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent) {
     .from('matches')
     .update({
       status: nextStatus,
+      booked_at: now, // the per-booked-lead fee counts from here
       stripe_payment_intent_id: pi.id,
       // The quote is the price of the tattoo; the deposit is only a credit
       // against it. Never let the $100 overwrite the quote.

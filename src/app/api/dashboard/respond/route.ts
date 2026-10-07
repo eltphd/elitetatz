@@ -110,6 +110,7 @@ export async function POST(req: Request) {
   } else if (action === 'deposit_received') {
     nextStatus = 'paid'
     notifType = 'deposit_received'
+    updates.booked_at = now // the per-booked-lead fee counts from here
     threadBody = `Deposit received — thank you. ${firstName} will confirm your date next.`
   } else {
     nextStatus = 'rejected'
