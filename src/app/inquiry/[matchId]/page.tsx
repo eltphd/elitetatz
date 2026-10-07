@@ -5,6 +5,8 @@ import { verifyMatch, depositUrl } from '@/lib/tokens'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { InquiryThread, type ThreadMessage } from '@/components/InquiryThread'
+import { InquiryConsent } from '@/components/ConsentChoices'
+import { currentChoices } from '@/lib/consent'
 
 // The client's page. No account: the signed token in the URL is the proof,
 // and it is checked before a single row is read. Wrong or missing token →
@@ -55,6 +57,12 @@ export default async function InquiryPage({
     .order('created_at', { ascending: true })
   const messages = (rows ?? []) as ThreadMessage[]
 
+  const { data: consentRows } = await admin
+    .from('client_consents')
+    .select('scope, granted, created_at')
+    .eq('match_id', matchId)
+  const consent = currentChoices(consentRows ?? [])
+
   let brief: Record<string, unknown> = {}
   try { brief = JSON.parse(match.client_brief ?? '{}') } catch {}
   const concept = str(brief.concept) || str(match.ai_summary) || 'your piece'
@@ -103,6 +111,11 @@ export default async function InquiryPage({
           clientName={clientName}
           artistName={firstName}
         />
+      </section>
+
+      <section className="mt-6">
+        <p className="text-xs text-[#6b6b6b] uppercase tracking-widest font-medium mb-3">Updates</p>
+        <InquiryConsent matchId={matchId} token={token!} initial={consent} />
       </section>
 
       <footer className="mt-10 text-center text-[10px] text-[#6b6b6b] space-y-1">

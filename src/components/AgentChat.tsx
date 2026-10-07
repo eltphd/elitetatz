@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { ConsentBoxes } from '@/components/ConsentChoices'
+import type { ConsentScope } from '@/lib/consent'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
@@ -64,6 +66,10 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [briefToken, setBriefToken] = useState<string | null>(null)
+  // The saved inquiry and its signed link token, so the client's opt-ins can
+  // be recorded against it when they press Send.
+  const [inquiry, setInquiry] = useState<{ matchId: string; t: string } | null>(null)
+  const [consent, setConsent] = useState<Record<ConsentScope, boolean>>({ artist_updates: false, elitetatz_network: false })
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -164,7 +170,10 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: allMessages, brief, briefToken, mode, sessionId: getSessionId() }),
       })
-      if (!res.ok) setSaveError(true)
+      if (!res.ok) { setSaveError(true); return }
+      const data = await res.json().catch(() => ({}))
+      const t = data.inquiryUrl ? new URL(data.inquiryUrl).searchParams.get('t') : null
+      if (data.matchId && t) setInquiry({ matchId: data.matchId, t })
     } catch {
       setSaveError(true)
     } finally {
@@ -176,6 +185,15 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
     if (saving || saveError) return
     if (mode === 'lacey') {
       // Contained confirmation — never route a RawSunArt client into the marketplace.
+      // Opt-ins are recorded only if the client ticked one; if this fails, the
+      // record says nothing and nothing is sent, which is the safe side.
+      if (inquiry && (consent.artist_updates || consent.elitetatz_network)) {
+        await fetch('/api/consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: inquiry.matchId, t: inquiry.t, choices: consent, source: 'concierge' }),
+        }).catch(() => {})
+      }
       setSubmitted(true)
     } else {
       router.push('/matches')
@@ -232,6 +250,14 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
                 >
                   Try again
                 </button>
+              </div>
+            )}
+            {isLacey && (
+              <div className="mb-3">
+                <ConsentBoxes
+                  value={consent}
+                  onChange={(scope, granted) => setConsent((c) => ({ ...c, [scope]: granted }))}
+                />
               </div>
             )}
             <button
