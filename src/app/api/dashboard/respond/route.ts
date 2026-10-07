@@ -14,19 +14,23 @@ import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 // deposit_received: the shop collected the deposit outside the platform
 // (e.g. AION's Square checkout) and the artist confirms it by hand.
 
-type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received'
-const ACTIONS: Action[] = ['accept', 'more_info', 'decline', 'deposit_received']
+type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date'
+const ACTIONS: Action[] = ['accept', 'more_info', 'decline', 'deposit_received', 'confirm_date']
 
 // Statuses the artist may still act on. Everything else is a 409.
 const OPEN: Record<string, Action[]> = {
   pending: ['accept', 'more_info', 'decline'],
   info_requested: ['accept', 'more_info', 'decline'],
   accepted: ['deposit_received'],
+  paid: ['confirm_date'],
+  booked: ['confirm_date'],
 }
 
 const str = (v: unknown) => (v == null ? '' : String(v)).trim()
 const firstName = ARTIST_CONFIG.name.split(' ')[0]
 const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' })
 
 export async function POST(req: Request) {
   const ctx = await artistContext()
@@ -41,11 +45,21 @@ export async function POST(req: Request) {
   const message = str(body.message).slice(0, 4000)
   const proposedDates = str(body.proposed_dates).slice(0, 500)
   const priceCents = Number(body.price_cents)
+  const designFeeCents = body.design_fee_cents == null || body.design_fee_cents === '' ? null : Number(body.design_fee_cents)
+  const appointmentAt = str(body.appointment_at)
 
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!ACTIONS.includes(action)) return Response.json({ error: 'Unknown action' }, { status: 400 })
   if (action === 'accept' && (!Number.isFinite(priceCents) || priceCents <= 0)) {
     return Response.json({ error: 'A quote is required to accept' }, { status: 400 })
+  }
+  if (action === 'accept' && designFeeCents != null && (!Number.isFinite(designFeeCents) || designFeeCents < 0)) {
+    return Response.json({ error: 'Design fee must be a number' }, { status: 400 })
+  }
+  if (action === 'confirm_date') {
+    const t = Date.parse(appointmentAt)
+    if (!Number.isFinite(t)) return Response.json({ error: 'Pick a date and time' }, { status: 400 })
+    if (t < Date.now() - 60 * 60 * 1000) return Response.json({ error: 'That date is in the past' }, { status: 400 })
   }
   if (action === 'more_info' && !message) {
     return Response.json({ error: 'Write the question you want to ask' }, { status: 400 })
@@ -53,7 +67,7 @@ export async function POST(req: Request) {
 
   const { data: match } = await db
     .from('matches')
-    .select('id, status, client_name, client_email, client_phone, ai_summary, client_brief')
+    .select('id, status, client_name, client_email, client_phone, ai_summary, client_brief, proposed_dates, date_request')
     .eq('id', matchId)
     .eq('artist_id', artist.id)
     .single()
@@ -76,8 +90,10 @@ export async function POST(req: Request) {
     updates.offered_price_cents = Math.round(priceCents)
     updates.proposed_dates = proposedDates || null
     updates.artist_response = message || null
+    if (designFeeCents != null) updates.design_fee_cents = Math.round(designFeeCents)
     threadBody = [
       `Accepted — quote ${money(priceCents)}.`,
+      designFeeCents ? `Design drafts ahead of the session: ${money(designFeeCents)} (separate from the deposit).` : null,
       proposedDates ? `Proposed dates: ${proposedDates}` : null,
       message || null,
     ].filter(Boolean).join('\n')
@@ -86,6 +102,11 @@ export async function POST(req: Request) {
     notifType = 'info_requested'
     updates.artist_response = message
     threadBody = message
+  } else if (action === 'confirm_date') {
+    nextStatus = 'booked'
+    notifType = 'booked'
+    updates.appointment_at = new Date(appointmentAt).toISOString()
+    threadBody = `${match.status === 'booked' ? 'Rescheduled' : 'Appointment confirmed'}: ${fmtWhen(updates.appointment_at as string)}${message ? `\n${message}` : ''}`
   } else if (action === 'deposit_received') {
     nextStatus = 'paid'
     notifType = 'deposit_received'
@@ -141,7 +162,7 @@ export async function POST(req: Request) {
 ${firstName} reviewed your idea (${concept}) and wants to do it.
 
 Quote: ${quote}
-${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
+${designFeeCents ? `Design drafts ahead of your session: ${money(designFeeCents)} (separate from the deposit; ${firstName} will send that payment link).\n` : ''}${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
 ${deposit ? (external ? `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit through ${ARTIST_CONFIG.depositCollectedBy}'s secure checkout:\n${deposit}\nOnce it's in, ${firstName} marks it received and confirms your date on your inquiry page.` : `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:\n${deposit}`) : `${firstName} will send your ${money(ARTIST_CONFIG.depositCents)} deposit link separately to hold the spot.`}
 
 ${ARTIST_CONFIG.depositPolicy}
@@ -152,6 +173,24 @@ ${inquiry}
 — ${ARTIST_CONFIG.handle}`,
         sms: `${ARTIST_CONFIG.handle}: ${firstName} accepted your piece at ${quote}${proposedDates ? ` (${proposedDates})` : ''}. ${deposit ? `Pay the ${money(ARTIST_CONFIG.depositCents)} deposit to hold it: ${deposit}` : `Deposit link coming separately.`}`,
       })
+    } else if (action === 'confirm_date') {
+      const when = fmtWhen(updates.appointment_at as string)
+      await notifyClient({
+        email: match.client_email,
+        phone: match.client_phone,
+        subject: `${match.status === 'booked' ? 'Rescheduled' : 'Confirmed'}: ${when} with ${firstName}`,
+        text: `Hey ${name},
+
+You're booked: ${when}.
+Where: ${ARTIST_CONFIG.address}.
+${message ? `\n${firstName}'s note: "${message}"\n` : ''}
+Arrive 10 minutes early. We review the design together before anything touches skin. ${ARTIST_CONFIG.depositPolicy}
+
+Your inquiry page: ${inquiry}
+
+— ${ARTIST_CONFIG.handle}`,
+        sms: `${ARTIST_CONFIG.handle}: you're booked ${when} at ${ARTIST_CONFIG.studio}, ${ARTIST_CONFIG.address.split(',')[0]}. Details: ${inquiry}`,
+      })
     } else if (action === 'deposit_received') {
       await notifyClient({
         email: match.client_email,
@@ -159,13 +198,13 @@ ${inquiry}
         subject: `Deposit received — ${concept}`,
         text: `Hey ${name},
 
-Your ${money(ARTIST_CONFIG.depositCents)} deposit is in and your spot is held. ${firstName} will confirm the date on your inquiry page and by text:
+Your ${money(ARTIST_CONFIG.depositCents)} deposit is in and your spot is held. Next: tell ${firstName} which date works for you on your inquiry page${match.proposed_dates ? ` (she offered: ${match.proposed_dates})` : ''}, and she confirms it from her side:
 ${inquiry}
 
 The deposit comes off your final price. The balance is paid at the studio.
 
 — ${ARTIST_CONFIG.handle}`,
-        sms: `${ARTIST_CONFIG.handle}: deposit received, your spot is held. ${firstName} confirms the date here: ${inquiry}`,
+        sms: `${ARTIST_CONFIG.handle}: deposit received, your spot is held. Pick your date here and ${firstName} confirms it: ${inquiry}`,
       })
     } else if (action === 'more_info') {
       await notifyClient({

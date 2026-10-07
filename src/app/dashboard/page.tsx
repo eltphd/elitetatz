@@ -31,6 +31,8 @@ interface Lead {
   client_phone: string | null
   proposed_dates: string | null
   appointment_at: string | null
+  design_fee_cents: number | null
+  date_request: string | null
   stripe_payment_intent_id: string | null
   clients: { id: string; name: string | null; email: string | null } | null
 }
@@ -85,6 +87,8 @@ function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
   if (CLOSED.includes(lead.status)) return 'closed'
   if (lead.status === 'pending') return 'needs_you'
   if (!clientOwesNothing(thread)) return 'needs_you'
+  // A paid client who has named a date and is waiting on her final say.
+  if (lead.status === 'paid' && lead.date_request && !lead.appointment_at) return 'needs_you'
   if (BOOKED.includes(lead.status)) return 'booked'
   return 'waiting'
 }
@@ -101,7 +105,7 @@ export default async function DashboardPage() {
       id, status, client_brief, ai_summary, offered_price_cents,
       placement, created_at, artist_response, conversation_id,
       client_name, client_email, client_phone, proposed_dates, appointment_at,
-      stripe_payment_intent_id,
+      design_fee_cents, date_request, stripe_payment_intent_id,
       clients (id, name, email)
     `)
     .eq('artist_id', artist.id)
@@ -228,7 +232,9 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
   const flags = Array.isArray(brief.feasibility_flags) ? brief.feasibility_flags.map(String).filter(Boolean) : []
   const pill = STATUS_PILL[lead.status] ?? { label: lead.status, cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' }
   const depositPaid = ['paid', 'booked', 'completed'].includes(lead.status) || Boolean(lead.stripe_payment_intent_id)
-  const actionable = lead.status === 'pending' || lead.status === 'info_requested' || (lead.status === 'accepted' && !depositPaid)
+  const actionable =
+    lead.status === 'pending' || lead.status === 'info_requested' || (lead.status === 'accepted' && !depositPaid) ||
+    lead.status === 'paid' || lead.status === 'booked'
 
   return (
     <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
@@ -284,7 +290,21 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
         </div>
       )}
 
-      {actionable && <LeadActions matchId={lead.id} status={lead.status as 'pending' | 'info_requested' | 'accepted'} />}
+      {(lead.status === 'paid' || lead.status === 'booked') && (
+        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1 mb-3">
+          {lead.offered_price_cents != null && <p><span className="text-[#6b6b6b]">Quote</span> <span className="font-semibold">{money(lead.offered_price_cents)}</span>{lead.design_fee_cents ? <span className="text-[#9b9b9b]"> · drafts {money(lead.design_fee_cents)}</span> : null}</p>}
+          {lead.proposed_dates && <p><span className="text-[#6b6b6b]">You offered</span> {lead.proposed_dates}</p>}
+          {lead.appointment_at && <p><span className="text-[#6b6b6b]">Appointment</span> <span className="text-green-400">{fmtDate(lead.appointment_at)}</span></p>}
+        </div>
+      )}
+      {actionable && (
+        <LeadActions
+          matchId={lead.id}
+          status={lead.status as 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'}
+          dateRequest={lead.date_request}
+          appointmentAt={lead.appointment_at}
+        />
+      )}
 
       {!actionable && !CLOSED.includes(lead.status) && (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1">

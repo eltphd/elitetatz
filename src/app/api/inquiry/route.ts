@@ -15,7 +15,7 @@ const str = (v: unknown) => (v == null ? '' : String(v)).trim()
 const PAID = ['paid', 'booked', 'completed']
 
 const MATCH_COLUMNS =
-  'id, status, offered_price_cents, proposed_dates, appointment_at, ai_summary, client_brief, client_name, stripe_payment_intent_id, artist_responded_at, created_at'
+  'id, status, offered_price_cents, proposed_dates, appointment_at, ai_summary, client_brief, client_name, stripe_payment_intent_id, artist_responded_at, created_at, design_fee_cents, date_request'
 
 function invalid() {
   return Response.json({ error: 'This link isn\'t valid' }, { status: 404 })
@@ -54,6 +54,8 @@ export async function GET(req: Request) {
     offered_price_cents: quoted ? match.offered_price_cents : null,
     proposed_dates: match.proposed_dates,
     appointment_at: match.appointment_at,
+    design_fee_cents: match.design_fee_cents ?? null,
+    date_request: match.date_request ?? null,
     deposit_cents: ARTIST_CONFIG.depositCents,
     deposit_paid: depositPaid,
     deposit_url: match.status === 'accepted' && !depositPaid ? depositLinkFor(matchId).url : null,
@@ -92,9 +94,15 @@ export async function POST(req: Request) {
     .single()
   if (!match) return invalid()
 
+  // kind: 'date_request' — the client names the date they want after the
+  // deposit; it is recorded on the match and the artist confirms (final say).
+  const kind = str(payload.kind)
+  const isDateRequest = kind === 'date_request'
+  const stored = isDateRequest ? `Date request: ${body}` : body
+
   const { data: inserted, error } = await admin
     .from('match_messages')
-    .insert({ match_id: matchId, sender: 'client', body })
+    .insert({ match_id: matchId, sender: 'client', body: stored })
     .select('id, sender, body, created_at')
     .single()
   if (error || !inserted) {
@@ -104,13 +112,27 @@ export async function POST(req: Request) {
 
   // Status stays put: an info_requested reply surfaces in "Needs you" on the
   // dashboard because the client's message is newer than her last one.
-  await admin.from('matches').update({ updated_at: new Date().toISOString() }).eq('id', matchId)
+  await admin
+    .from('matches')
+    .update({ updated_at: new Date().toISOString(), ...(isDateRequest ? { date_request: body } : {}) })
+    .eq('id', matchId)
 
   const name = match.client_name || 'Client'
   const concept = str(match.ai_summary) || 'their piece'
   const dashboard = `${appUrl()}/dashboard`
   try {
-    await notifyArtist({
+    await notifyArtist(isDateRequest ? {
+      subject: `${name} asked for a date — ${concept}`,
+      text: `${name} wants to book ${concept} on:
+
+"${body}"
+
+Confirm or change it from your inbox (you have final say):
+${dashboard}
+
+(match ${matchId})`,
+      sms: `${name} asked for a date for "${concept}": ${body.slice(0, 80)} — confirm at ${dashboard}`,
+    } : {
       subject: `${name} replied — ${concept}`,
       text: `${name} wrote on their inquiry (${concept}, status: ${match.status}):
 

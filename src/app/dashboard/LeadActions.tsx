@@ -2,20 +2,30 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign } from 'lucide-react'
+import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign, CalendarCheck } from 'lucide-react'
 
 // Three buttons. Accept opens quote + dates + note; Need more info opens a
 // question box; Pass opens an optional note. One tap each after the fields.
 // Optimistic: the card flips to its result the moment she taps, then the
 // server page refreshes so the lead lands in the right group.
 
-type Panel = 'idle' | 'accept' | 'more_info' | 'decline'
-type Done = 'accepted' | 'info_requested' | 'rejected' | 'paid'
+type Panel = 'idle' | 'accept' | 'more_info' | 'decline' | 'confirm_date'
+type Done = 'accepted' | 'info_requested' | 'rejected' | 'paid' | 'booked'
 
 const INPUT =
   'w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#6b6b6b] outline-none focus:border-[#c9a84c]/40 transition-colors'
 
-export function LeadActions({ matchId, status }: { matchId: string; status: 'pending' | 'info_requested' | 'accepted' }) {
+export function LeadActions({
+  matchId,
+  status,
+  dateRequest,
+  appointmentAt,
+}: {
+  matchId: string
+  status: 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'
+  dateRequest?: string | null
+  appointmentAt?: string | null
+}) {
   const router = useRouter()
   const [panel, setPanel] = useState<Panel>('idle')
   const [done, setDone] = useState<Done | null>(null)
@@ -24,10 +34,12 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
   const [dates, setDates] = useState('')
   const [note, setNote] = useState('')
   const [question, setQuestion] = useState('')
+  const [designFee, setDesignFee] = useState('')
+  const [when, setWhen] = useState('')
 
-  async function send(action: 'accept' | 'more_info' | 'decline' | 'deposit_received') {
+  async function send(action: 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date') {
     const optimistic: Done =
-      action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : action === 'deposit_received' ? 'paid' : 'rejected'
+      action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : action === 'deposit_received' ? 'paid' : action === 'confirm_date' ? 'booked' : 'rejected'
     setSubmitting(true)
     setDone(optimistic)
     try {
@@ -39,6 +51,8 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
           action,
           price_cents: action === 'accept' ? Math.round(Number(quote) * 100) : undefined,
           proposed_dates: action === 'accept' ? dates || undefined : undefined,
+          design_fee_cents: action === 'accept' && designFee !== '' ? Math.round(Number(designFee) * 100) : undefined,
+          appointment_at: action === 'confirm_date' ? new Date(when).toISOString() : undefined,
           message: action === 'more_info' ? question : note || undefined,
         }),
       })
@@ -55,6 +69,13 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
     }
   }
 
+  if (done === 'booked') {
+    return (
+      <Result icon={<CalendarCheck className="w-4 h-4 text-green-400" />} cls="text-green-400">
+        Date confirmed — client got the details by email and text
+      </Result>
+    )
+  }
   if (done === 'paid') {
     return (
       <Result icon={<BadgeDollarSign className="w-4 h-4 text-green-400" />} cls="text-green-400">
@@ -93,6 +114,9 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
         </Field>
         <Field label="Proposed dates">
           <input type="text" value={dates} onChange={(e) => setDates(e.target.value)} placeholder="Wed Oct 8 at 1pm or Sat Oct 11 at noon" className={INPUT} />
+        </Field>
+        <Field label="Design draft fee ($, optional — only if they want drafts before the session)">
+          <input type="number" inputMode="decimal" min={0} value={designFee} onChange={(e) => setDesignFee(e.target.value)} placeholder="leave blank for none" className={INPUT} />
         </Field>
         <Field label="Note to client (optional)">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Anything they should know before booking…" className={`${INPUT} resize-none`} />
@@ -148,6 +172,50 @@ export function LeadActions({ matchId, status }: { matchId: string; status: 'pen
           >
             {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
             Pass on this one
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'paid' || status === 'booked') {
+    // Final say on the date. The client's request (if any) is shown; she picks
+    // the exact time and the client is told by email and text.
+    const valid = when !== '' && Number.isFinite(Date.parse(when))
+    if (panel !== 'confirm_date') {
+      return (
+        <div className="space-y-2">
+          {dateRequest && !appointmentAt && (
+            <p className="text-xs text-[#e0c878] bg-[#c9a84c]/10 border border-[#c9a84c]/25 rounded-lg px-2.5 py-1.5">Client asked for: <span className="text-white">{dateRequest}</span></p>
+          )}
+          <button
+            onClick={() => setPanel('confirm_date')}
+            className="flex items-center justify-center gap-1.5 w-full bg-[#c9a84c] text-black font-bold py-3 rounded-xl text-sm"
+          >
+            <CalendarCheck className="w-3.5 h-3.5" />
+            {appointmentAt ? 'Change the date' : 'Confirm the date'}
+          </button>
+        </div>
+      )
+    }
+    return (
+      <div className="space-y-3 pt-1">
+        {dateRequest && <p className="text-xs text-[#9b9b9b]">Client asked for: <span className="text-white">{dateRequest}</span></p>}
+        <Field label="Appointment date and time">
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={INPUT} autoFocus />
+        </Field>
+        <Field label="Note to client (optional)">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Parking, what to bring, anything else…" className={`${INPUT} resize-none`} />
+        </Field>
+        <div className="flex gap-2">
+          <Cancel onClick={() => setPanel('idle')} />
+          <button
+            onClick={() => send('confirm_date')}
+            disabled={!valid || submitting}
+            className="flex-[2] bg-[#c9a84c] text-black font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarCheck className="w-3.5 h-3.5" />}
+            Confirm and tell the client
           </button>
         </div>
       </div>
