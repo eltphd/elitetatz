@@ -6,6 +6,7 @@ import { checkAbuse } from '@/lib/rate-limit'
 import { notifyArtist, notifyClient } from '@/lib/notify'
 import { inquiryUrl, appUrl, linksConfigured, verifyBrief } from '@/lib/tokens'
 import { singleArtistMode } from '@/lib/pilot'
+import { hasRecentInquiry } from '@/lib/inquiry'
 
 // Called by AgentChat when BRIEF_READY fires.
 // Persists the conversation + brief, opens a pending match for the artist,
@@ -101,29 +102,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Artist not configured' }, { status: 500 })
     }
 
-    // One open inquiry per contact per day. A repeat (a double submit, or
-    // someone replaying a brief) is recorded but sends nothing and returns no
-    // link, so it cannot be used to message a stranger twice or to read an
-    // existing inquiry.
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    // Quoted, because phone numbers carry parentheses and commas that the
-    // PostgREST or() grammar would otherwise read as syntax.
-    const q = (v: string) => `"${v.replace(/["\\]/g, '')}"`
-    const contactFilters = [
-      clientEmail ? `client_email.eq.${q(clientEmail)}` : null,
-      clientPhone ? `client_phone.eq.${q(clientPhone)}` : null,
-    ].filter(Boolean)
-    if (contactFilters.length) {
-      const { data: recent } = await db
-        .from('matches')
-        .select('id')
-        .eq('artist_id', artist.id)
-        .gte('created_at', since)
-        .or(contactFilters.join(','))
-        .limit(1)
-      if (recent?.length) {
-        return Response.json({ conversationId: conversation.id, duplicate: true })
-      }
+    if (await hasRecentInquiry(db, artist.id, clientEmail, clientPhone)) {
+      return Response.json({ conversationId: conversation.id, duplicate: true })
     }
 
     const { data: match, error: matchErr } = await db

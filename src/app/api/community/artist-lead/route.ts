@@ -1,30 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/resend'
 import { checkAbuse, isBot } from '@/lib/rate-limit'
+import { corsHeaders, preflight } from '@/lib/cors'
+import { passesTurnstile, failedCheck } from '@/lib/turnstile'
 
 // Artist / shop-owner waitlist for the platform ("I want this for my work").
 // Fed by /artists on this app and /for-artists on artist presence sites.
 
-const ALLOWED_ORIGINS = new Set([
-  'https://rawsunart.com',
-  'https://www.rawsunart.com',
-  'https://rawsunart-web.vercel.app',
-  'https://elitetatz.vercel.app',
-  'http://localhost:3000',
-])
-
-function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('origin') ?? ''
-  return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://rawsunart.com',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
-  }
-}
-
-export async function OPTIONS(req: Request) {
-  return new Response(null, { status: 204, headers: corsHeaders(req) })
+export function OPTIONS(req: Request) {
+  return preflight(req)
 }
 
 interface LeadBody {
@@ -54,6 +38,7 @@ export async function POST(req: Request) {
   if (isBot(body as Record<string, unknown>)) {
     return Response.json({ ok: true }, { headers })
   }
+  if (!(await passesTurnstile(req, (body as Record<string, unknown>).turnstileToken))) return failedCheck(headers)
 
   const email = (body.email ?? '').trim().toLowerCase()
   const name = (body.name ?? '').trim().slice(0, 120)
