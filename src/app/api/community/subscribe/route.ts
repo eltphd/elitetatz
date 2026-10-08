@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   if (isBot(body as Record<string, unknown>)) {
     return Response.json({ ok: true }, { headers })
   }
-  if (!(await passesTurnstile(req, (body as Record<string, unknown>).turnstileToken))) return failedCheck(headers)
+  if (!(await passesTurnstile(req, (body as Record<string, unknown>).turnstileToken, 'subscribe'))) return failedCheck(headers)
 
   const email = (body.email ?? '').trim().toLowerCase()
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 320) {
