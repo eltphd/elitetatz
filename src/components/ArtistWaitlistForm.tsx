@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { Turnstile } from '@/components/Turnstile'
 
 // Waitlist form for artists / shop owners who want their own hub.
 // Posts to /api/community/artist-lead.
@@ -9,6 +10,9 @@ export default function ArtistWaitlistForm({ source = 'artists-page' }: { source
   const [form, setForm] = useState({ name: '', email: '', instagram: '', role: 'artist', city: '' })
   const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [token, setToken] = useState('')
+  const [gotcha, setGotcha] = useState('')
+  const onToken = useCallback((t: string) => setToken(t), [])
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -26,7 +30,7 @@ export default function ArtistWaitlistForm({ source = 'artists-page' }: { source
       const res = await fetch('/api/community/artist-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, source }),
+        body: JSON.stringify({ ...form, source, turnstileToken: token, _gotcha: gotcha }),
       })
       if (!res.ok) throw new Error()
       setStatus('done')
@@ -55,7 +59,7 @@ export default function ArtistWaitlistForm({ source = 'artists-page' }: { source
     'w-full rounded-xl border border-[#2a2a2a] bg-[#1e1e1e] px-4 py-3.5 text-base text-[#f5f5f0] outline-none placeholder:text-[#6b6b6b] focus:border-[#c9a84c]'
 
   return (
-    <form onSubmit={submit} className="space-y-2.5">
+    <form onSubmit={submit} className="relative space-y-2.5">
       <input
         type="text"
         required
@@ -96,6 +100,18 @@ export default function ArtistWaitlistForm({ source = 'artists-page' }: { source
           className={inputCls}
         />
       </div>
+      {/* Honeypot: hidden from people and screen readers, filled by naive bots. */}
+      <input
+        type="text"
+        name="_gotcha"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        value={gotcha}
+        onChange={(e) => setGotcha(e.target.value)}
+        className="absolute -left-[9999px] h-0 w-0 opacity-0"
+      />
+      <Turnstile onToken={onToken} />
       <button
         type="submit"
         disabled={status === 'sending'}
