@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 
-// Cloudflare Turnstile widget. Renders nothing until
-// NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, matching the server, which only
-// checks tokens once TURNSTILE_SECRET_KEY is set (lib/turnstile.ts).
+// Cloudflare Turnstile widget. The site key is public; the server only checks
+// tokens once TURNSTILE_SECRET_KEY is set (lib/turnstile.ts).
 
 declare global {
   interface Window {
@@ -16,7 +15,7 @@ declare global {
   }
 }
 
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ''
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAFQ8BAHMikzqWxoG'
 const SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
 
 function loadScript(): Promise<void> {
@@ -34,7 +33,7 @@ function loadScript(): Promise<void> {
   })
 }
 
-export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
+export function Turnstile({ action, onToken }: { action: string; onToken: (token: string) => void }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -46,6 +45,7 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
         if (cancelled || !ref.current || !window.turnstile) return
         id = window.turnstile.render(ref.current, {
           sitekey: SITE_KEY,
+          action,
           theme: 'dark',
           callback: (t: string) => onToken(t),
           'expired-callback': () => onToken(''),
@@ -57,7 +57,7 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
       cancelled = true
       if (id && window.turnstile) window.turnstile.remove(id)
     }
-  }, [onToken])
+  }, [action, onToken])
 
   if (!SITE_KEY) return null
   return <div ref={ref} className="flex justify-center min-h-[65px]" />

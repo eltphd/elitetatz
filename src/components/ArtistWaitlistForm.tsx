@@ -111,7 +111,7 @@ export default function ArtistWaitlistForm({ source = 'artists-page' }: { source
         onChange={(e) => setGotcha(e.target.value)}
         className="absolute -left-[9999px] h-0 w-0 opacity-0"
       />
-      <Turnstile onToken={onToken} />
+      <Turnstile action="artist_lead" onToken={onToken} />
       <button
         type="submit"
         disabled={status === 'sending'}

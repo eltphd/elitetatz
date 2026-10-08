@@ -11,7 +11,18 @@ import { clientIp } from '@/lib/rate-limit'
 
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 
-export async function passesTurnstile(req: Request, token: unknown): Promise<boolean> {
+// Pages the widget is allowed to run on. A token minted anywhere else fails,
+// even with the right site key. Override with TURNSTILE_HOSTNAMES (comma list).
+const DEFAULT_HOSTNAMES = ['rawsunart.com', 'www.rawsunart.com', 'elitetatz.vercel.app']
+
+function allowedHostnames(): Set<string> {
+  const list = (process.env.TURNSTILE_HOSTNAMES ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)
+  return new Set(list.length ? list : DEFAULT_HOSTNAMES)
+}
+
+// `action` names the form (inquiry, subscribe, artist_lead), so a token from
+// one form cannot be spent on another.
+export async function passesTurnstile(req: Request, token: unknown, action: string): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY
   if (!secret) return true
   if (typeof token !== 'string' || !token || token.length > 2048) return false
@@ -26,9 +37,16 @@ export async function passesTurnstile(req: Request, token: unknown): Promise<boo
       console.error(`turnstile: verify returned ${res.status}; letting the form through`)
       return true
     }
-    const data = (await res.json()) as { success?: boolean; 'error-codes'?: string[] }
-    if (!data.success) console.warn('turnstile: rejected', (data['error-codes'] ?? []).join(','))
-    return data.success === true
+    const data = (await res.json()) as { success?: boolean; action?: string; hostname?: string; 'error-codes'?: string[] }
+    if (!data.success) {
+      console.warn('turnstile: rejected', (data['error-codes'] ?? []).join(','))
+      return false
+    }
+    if (data.action !== action || !allowedHostnames().has(String(data.hostname ?? '').toLowerCase())) {
+      console.warn(`turnstile: token for action=${data.action} host=${data.hostname}, expected ${action}`)
+      return false
+    }
+    return true
   } catch (err) {
     console.error('turnstile: verify unreachable; letting the form through', err)
     return true

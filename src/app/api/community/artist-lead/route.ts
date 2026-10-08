@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   if (isBot(body as Record<string, unknown>)) {
     return Response.json({ ok: true }, { headers })
   }
-  if (!(await passesTurnstile(req, (body as Record<string, unknown>).turnstileToken))) return failedCheck(headers)
+  if (!(await passesTurnstile(req, (body as Record<string, unknown>).turnstileToken, 'artist_lead'))) return failedCheck(headers)
 
   const email = (body.email ?? '').trim().toLowerCase()
   const name = (body.name ?? '').trim().slice(0, 120)

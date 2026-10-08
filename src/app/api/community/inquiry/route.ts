@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   // Report success to bots so they stop retrying and learn nothing.
   if (isBot(body)) return Response.json({ ok: true }, { headers })
-  if (!(await passesTurnstile(req, body.turnstileToken))) return failedCheck(headers)
+  if (!(await passesTurnstile(req, body.turnstileToken, 'inquiry'))) return failedCheck(headers)
 
   const clientName = str(body.name, 120)
   const clientEmail = str(body.email, 320).toLowerCase()
