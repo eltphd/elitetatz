@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Message } from '@/lib/types'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { checkAbuse } from '@/lib/rate-limit'
+import { track } from '@/lib/analytics'
 import { notifyArtist, notifyClient } from '@/lib/notify'
 import { inquiryUrl, appUrl, linksConfigured, verifyBrief } from '@/lib/tokens'
 import { hasRecentInquiry } from '@/lib/inquiry'
@@ -149,6 +150,7 @@ Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONF
       }),
     ])
 
+    await track('inquiry_sent', req)
     return Response.json({ conversationId: conversation.id, matchId: match.id, inquiryUrl: link })
   } catch (err) {
     console.error('brief route:', err)

@@ -32,6 +32,9 @@ jest.mock('@/lib/notify', () => ({
   notifyClient: (...a: unknown[]) => notifyClient(...a),
 }))
 
+const track = jest.fn()
+jest.mock('@/lib/analytics', () => ({ track: (...a: unknown[]) => track(...a) }))
+
 import { POST } from '@/app/api/webhooks/stripe/route'
 
 const MATCH_ID = '11111111-1111-1111-1111-111111111111'
@@ -67,6 +70,7 @@ beforeEach(() => {
   transfersCreate.mockReset().mockResolvedValue({ id: 'tr_1' })
   notifyArtist.mockReset().mockResolvedValue(undefined)
   notifyClient.mockReset().mockResolvedValue(undefined)
+  track.mockReset().mockResolvedValue(undefined)
   respond = () => undefined
   current = fakeDb((c) => respond(c))
   jest.spyOn(console, 'error').mockImplementation(() => {})
@@ -124,6 +128,7 @@ describe('payment_intent.succeeded', () => {
     expect(writes(current.calls, 'matches', 'update').some((c) => (c.payload as { stripe_transfer_id?: string }).stripe_transfer_id === 'tr_1')).toBe(true)
     expect(notifyArtist).toHaveBeenCalledTimes(1)
     expect(notifyClient).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { amount_usd: 100, payout: 'sent', target: 'artist' })
   })
 
   it('pays the shop account when the match says so', async () => {
@@ -139,6 +144,7 @@ describe('payment_intent.succeeded', () => {
     expect(transfersCreate).not.toHaveBeenCalled()
     const notes = writes(current.calls, 'match_messages', 'insert').map((c) => (c.payload as { body: string }).body)
     expect(notes.some((b) => b.includes('held by TatzAI'))).toBe(true)
+    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { amount_usd: 100, payout: 'held', target: 'artist' })
   })
 
   it('still answers 200 when the transfer itself fails, so Stripe does not re-run the flip', async () => {
@@ -155,6 +161,7 @@ describe('payment_intent.succeeded', () => {
     expect(writes(current.calls, 'matches', 'update')).toHaveLength(0)
     expect(transfersCreate).not.toHaveBeenCalled()
     expect(notifyArtist).not.toHaveBeenCalled()
+    expect(track).not.toHaveBeenCalled()
   })
 
   it('does nothing more when a concurrent delivery won the flip', async () => {
@@ -163,6 +170,7 @@ describe('payment_intent.succeeded', () => {
     expect(res.status).toBe(200)
     expect(transfersCreate).not.toHaveBeenCalled()
     expect(notifyArtist).not.toHaveBeenCalled()
+    expect(track).not.toHaveBeenCalled()
   })
 
   it('answers 500 when the database write fails, so Stripe retries', async () => {

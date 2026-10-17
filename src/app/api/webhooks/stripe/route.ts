@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyArtist, notifyClient } from '@/lib/notify'
 import { appUrl, inquiryUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+import { track } from '@/lib/analytics'
 
 // Stripe → TatzAI. Runs with the service role: nobody is signed in here.
 //
@@ -36,9 +37,12 @@ export async function POST(req: Request) {
 
   try {
     switch (event.type) {
-      case 'payment_intent.succeeded':
-        await onDepositPaid(db, event.data.object)
+      case 'payment_intent.succeeded': {
+        const paid = await onDepositPaid(db, event.data.object)
+        // Once per deposit: repeat deliveries and lost races return null.
+        if (paid) await track('deposit_paid', req, paid)
         break
+      }
       case 'payment_intent.payment_failed':
         await onDepositFailed(db, event.data.object)
         break
@@ -107,19 +111,21 @@ function formatWhen(iso: string): string {
   })
 }
 
-async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent) {
+type DepositPaid = { amount_usd: number; payout: 'sent' | 'held'; target: 'artist' | 'shop' }
+
+async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent): Promise<DepositPaid | null> {
   const matchId = pi.metadata?.match_id
   if (!matchId) {
     console.warn('stripe webhook: payment_intent.succeeded without match_id', pi.id)
-    return
+    return null
   }
   const match = await loadMatch(db, matchId)
-  if (!match) return
+  if (!match) return null
 
   // Duplicate delivery, or the deposit already settled through another path.
   if (SETTLED.has(match.status)) {
     console.info('stripe webhook: deposit already recorded for', matchId)
-    return
+    return null
   }
 
   const now = new Date().toISOString()
@@ -144,7 +150,7 @@ async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent) {
   if (updErr) throw updErr
   if (!flipped || flipped.length === 0) {
     console.info('stripe webhook: lost the race on', matchId, '— another delivery handled it')
-    return
+    return null
   }
 
   const depositDollars = pi.amount / 100
@@ -264,6 +270,8 @@ ${ARTIST_CONFIG.address}
       sms: `${ARTIST_CONFIG.handle}: $${depositDollars} deposit received for ${concept}. ${match.appointment_at ? `See you ${formatWhen(match.appointment_at)}.` : 'Date confirmation is coming.'} ${link}`,
     }),
   ])
+
+  return { amount_usd: pi.amount / 100, payout: transferId ? 'sent' : 'held', target }
 }
 
 async function onDepositFailed(db: SupabaseClient, pi: Stripe.PaymentIntent) {

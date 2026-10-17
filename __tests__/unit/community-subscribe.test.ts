@@ -19,6 +19,9 @@ jest.mock('@/lib/resend', () => {
   return { ...actual, sendEmail: (...a: unknown[]) => sendEmail(...a) }
 })
 
+const track = jest.fn()
+jest.mock('@/lib/analytics', () => ({ track: (...a: unknown[]) => track(...a) }))
+
 import { POST } from '@/app/api/community/subscribe/route'
 
 const MEMBER_ID = '33333333-3333-3333-3333-333333333333'
@@ -44,6 +47,7 @@ beforeEach(() => {
   process.env.MATCH_TOKEN_SECRET = 'test-secret'
   delete process.env.TURNSTILE_SECRET_KEY
   sendEmail.mockReset().mockResolvedValue(true)
+  track.mockReset().mockResolvedValue(undefined)
   respond = () => undefined
   current = fakeDb((c) => respond(c))
   jest.spyOn(console, 'warn').mockImplementation(() => {})
@@ -59,6 +63,7 @@ describe('bot layers', () => {
     expect(memberWrites()).toHaveLength(0)
     expect(rejections()).toEqual(['honeypot'])
     expect(sendEmail).not.toHaveBeenCalled()
+    expect(track).not.toHaveBeenCalled()
   })
 
   it('asks for a reload when the page stamp is missing', async () => {
@@ -134,6 +139,7 @@ describe('a real sign-up', () => {
     expect(sendEmail.mock.calls[0][0].text).toContain(`/api/community/confirm?id=${MEMBER_ID}`)
     expect(writes(current.calls, 'community_members', 'update').some((c) => 'welcome_sent_at' in (c.payload as object))).toBe(true)
     expect(rejections()).toEqual([])
+    expect(track).toHaveBeenCalledWith('club_joined', expect.any(Request), { source: 'hell-city-qr' })
   })
 
   it('does not stamp welcome_sent_at when the email did not go out', async () => {
@@ -155,6 +161,7 @@ describe('a real sign-up', () => {
     const res = await post({ email: 'sam@example.com', ts: ageAStamp() })
     expect(res.status).toBe(200)
     expect(sendEmail).not.toHaveBeenCalled()
+    expect(track).not.toHaveBeenCalled()
     expect(writes(current.calls, 'community_members', 'insert')).toHaveLength(0)
     const [upd] = writes(current.calls, 'community_members', 'update')
     expect(upd!.payload).not.toHaveProperty('unsubscribed_at')
