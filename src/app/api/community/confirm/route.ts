@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { track } from '@/lib/analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,11 +28,14 @@ export async function GET(req: Request) {
   if (!supabase) {
     return page('Try again later', 'We could not process this right now. Reply to the welcome email and we will confirm you by hand.')
   }
-  await supabase
+  const { data: confirmed } = await supabase
     .from('community_members')
     .update({ confirmed_at: new Date().toISOString() })
     .eq('id', id)
     .is('confirmed_at', null)
     .is('unsubscribed_at', null)
+    .select('id')
+  // Count the first click only; a repeat click matches no row.
+  if (confirmed?.length) await track('club_confirmed', req)
   return page("You're in.", 'Thanks for confirming. New work, drops and travel dates reach you first.')
 }

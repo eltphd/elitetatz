@@ -6,6 +6,7 @@ import { passesTurnstile, failedCheck } from '@/lib/turnstile'
 import { verifyStamp } from '@/lib/tokens'
 import { normalizeEmail, emailRejectReason } from '@/lib/email-hygiene'
 import { logRejection } from '@/lib/join-rejections'
+import { track } from '@/lib/analytics'
 
 // Collectors Club signup. Called from rawsunart.com.
 //
@@ -113,6 +114,7 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Could not save signup' }, { status: 500, headers })
     }
     memberId = created.id
+    await track('club_joined', req, { source })
   }
 
   // Welcome + confirm email — once per member, best-effort.
