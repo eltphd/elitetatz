@@ -102,8 +102,8 @@ export default function ArtistsPage() {
             ))}
           </ul>
           <p className="mt-4 text-sm text-[#6b6b6b]">
-            One subscription. No ESP account, no website builder, no booking tool, no funnel software to learn — we run
-            the stack, you keep the audience.
+            No ESP account, no website builder, no booking tool, no funnel software to learn — we run the stack, you
+            keep the audience.
           </p>
         </div>
 
