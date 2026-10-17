@@ -111,7 +111,7 @@ function formatWhen(iso: string): string {
   })
 }
 
-type DepositPaid = { amount_usd: number; payout: 'sent' | 'held'; target: 'artist' | 'shop' }
+type DepositPaid = { via: 'stripe'; amount_usd: number; payout: 'sent' | 'held'; target: 'artist' | 'shop' }
 
 async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent): Promise<DepositPaid | null> {
   const matchId = pi.metadata?.match_id
@@ -271,7 +271,7 @@ ${ARTIST_CONFIG.address}
     }),
   ])
 
-  return { amount_usd: pi.amount / 100, payout: transferId ? 'sent' : 'held', target }
+  return { via: 'stripe', amount_usd: pi.amount / 100, payout: transferId ? 'sent' : 'held', target }
 }
 
 async function onDepositFailed(db: SupabaseClient, pi: Stripe.PaymentIntent) {

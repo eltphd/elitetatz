@@ -1,4 +1,5 @@
 import { stripe, matchConcept } from '@/lib/stripe'
+import { platformDepositsOn } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyMatch } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
@@ -23,8 +24,9 @@ export async function POST(req: Request) {
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!verifyMatch(matchId, t)) return Response.json({ error: 'Invalid or expired link' }, { status: 403 })
 
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return Response.json({ error: 'Payments are not configured yet' }, { status: 503 })
+  // Deposits go to the shop's checkout unless platform deposits are switched on.
+  if (!platformDepositsOn()) {
+    return Response.json({ error: 'Deposits are paid through the studio. Use the link on your inquiry page.' }, { status: 503 })
   }
   const supabase = createAdminClient()
   if (!supabase) return Response.json({ error: 'Service unavailable' }, { status: 503 })
