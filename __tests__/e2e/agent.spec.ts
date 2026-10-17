@@ -1,56 +1,34 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('TatzAI Agent', () => {
+test.describe('Concierge', () => {
   test.beforeEach(async ({ page }) => {
+    await page.goto('/agent?mode=rawsunart')
+  })
+
+  test('opens as Lacey’s booking assistant', async ({ page }) => {
+    await expect(page.getByRole('heading', { level: 1, name: 'RawSunArt · Concierge' })).toBeVisible()
+    await expect(page.getByText('Booking assistant for Lacey Rawson', { exact: true })).toBeVisible()
+  })
+
+  test('a bare /agent link is Lacey’s too', async ({ page }) => {
     await page.goto('/agent')
+    await expect(page.getByText('Booking assistant for Lacey Rawson', { exact: true })).toBeVisible()
   })
 
-  test('shows welcome message', async ({ page }) => {
-    await expect(page.getByText("Hey! I'm TatzAI")).toBeVisible()
+  test('shows Lacey’s starter prompts', async ({ page }) => {
+    await expect(page.getByText('A watercolor piece — I have a rough idea')).toBeVisible()
   })
 
-  test('shows starter prompt suggestions', async ({ page }) => {
-    await expect(page.getByText('Small minimalist piece, first tattoo')).toBeVisible()
-  })
-
-  test('has functional text input', async ({ page }) => {
+  test('send is disabled until there is text', async ({ page }) => {
+    await expect(page.locator('button[disabled]').first()).toBeVisible()
     const textarea = page.locator('textarea')
-    await expect(textarea).toBeVisible()
-    await textarea.fill('I want a small rose on my wrist')
-    await expect(textarea).toHaveValue('I want a small rose on my wrist')
-  })
-
-  test('send button is disabled when input is empty', async ({ page }) => {
-    // Send button should be visually disabled (opacity-30)
-    const sendBtn = page.locator('button[disabled]').first()
-    await expect(sendBtn).toBeVisible()
-  })
-
-  test('send button enables when text is entered', async ({ page }) => {
-    const textarea = page.locator('textarea')
-    await textarea.fill('I want a small rose')
-    // Button should no longer have disabled attribute
+    await textarea.fill('A small watercolor hummingbird on my wrist')
+    await expect(textarea).toHaveValue('A small watercolor hummingbird on my wrist')
     const sendBtn = page.locator('button').filter({ has: page.locator('svg') }).last()
     await expect(sendBtn).not.toBeDisabled()
   })
 
-  test('starter prompt sends a message when clicked', async ({ page }) => {
-    // Note: this test requires ANTHROPIC_API_KEY to be set for a response
-    // Without it, we just verify the message appears in the chat
-    const prompt = page.getByText('Small minimalist piece, first tattoo')
-    await prompt.click()
-
-    // User message should appear
-    await expect(page.getByText('Small minimalist piece, first tattoo').last()).toBeVisible()
-  })
-
-  test('displays TatzAI avatar in header', async ({ page }) => {
-    await expect(page.getByText('Your tattoo concierge')).toBeVisible()
-  })
-
-  test('image attach button is visible', async ({ page }) => {
-    // ImagePlus icon button should be present
-    const attachBtn = page.locator('button').first()
-    await expect(attachBtn).toBeVisible()
+  test('links back to rawsunart.com', async ({ page }) => {
+    await expect(page.getByRole('link', { name: '← Back to rawsunart.com' })).toBeVisible()
   })
 })

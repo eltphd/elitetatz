@@ -5,7 +5,6 @@ import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { checkAbuse } from '@/lib/rate-limit'
 import { notifyArtist, notifyClient } from '@/lib/notify'
 import { inquiryUrl, appUrl, linksConfigured, verifyBrief } from '@/lib/tokens'
-import { singleArtistMode } from '@/lib/pilot'
 import { hasRecentInquiry } from '@/lib/inquiry'
 
 // Called by AgentChat when BRIEF_READY fires.
@@ -17,7 +16,6 @@ interface BriefPayload {
   messages: Message[]
   brief: Record<string, unknown>
   briefToken?: string
-  mode?: string
   sessionId: string
 }
 
@@ -28,7 +26,7 @@ export async function POST(req: Request) {
   if (limited) return limited
 
   try {
-    const { messages, brief, briefToken, mode: requestedMode, sessionId }: BriefPayload = await req.json()
+    const { messages, brief, briefToken, sessionId }: BriefPayload = await req.json()
     if (!brief || !Array.isArray(messages)) {
       return Response.json({ error: 'Missing brief' }, { status: 400 })
     }
@@ -43,8 +41,6 @@ export async function POST(req: Request) {
     if (!verifyBrief(brief, briefToken)) {
       return Response.json({ error: 'This brief could not be verified. Please start the chat again.' }, { status: 403 })
     }
-    const mode = singleArtistMode() ? 'lacey' : requestedMode
-
     // The private tables are deny-all; only the service role can write them.
     const db = createAdminClient()
     if (!db) return Response.json({ error: 'Inquiries are paused. Please email the studio.' }, { status: 503 })
@@ -77,7 +73,7 @@ export async function POST(req: Request) {
         messages,
         brief_extracted: brief,
         session_id: sessionId,
-        mode: mode ?? 'marketplace',
+        mode: 'lacey',
       })
       .select('id')
       .single()
@@ -85,10 +81,6 @@ export async function POST(req: Request) {
     if (convErr || !conversation) {
       console.error('conversation insert:', convErr)
       return Response.json({ error: 'DB error' }, { status: 500 })
-    }
-
-    if (mode !== 'lacey') {
-      return Response.json({ conversationId: conversation.id })
     }
 
     const { data: artist, error: artistErr } = await db

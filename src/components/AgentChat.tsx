@@ -6,7 +6,6 @@ import type { ConsentScope } from '@/lib/consent'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
-import { useRouter } from 'next/navigation'
 
 // The model writes the brief as a fenced ```brief block plus a BRIEF_READY
 // marker. The server strips them per chunk, which misses a block split across
@@ -27,13 +26,6 @@ function getSessionId() {
   return id
 }
 
-const STARTER_PROMPTS = [
-  "I want a sleeve but don't know where to start",
-  "Small minimalist piece, first tattoo",
-  "Cover up an old tattoo",
-  "Japanese koi — how much should I budget?",
-]
-
 const LACEY_STARTER_PROMPTS = [
   "A watercolor piece — I have a rough idea",
   "Botanical / floral, first tattoo",
@@ -41,23 +33,15 @@ const LACEY_STARTER_PROMPTS = [
   "How does booking and the deposit work?",
 ]
 
-const WELCOME: Message = {
-  role: 'assistant',
-  content: `Hey! I'm EliteTatz — your personal tattoo concierge. I'm here to help you:\n\n• **Refine your idea** into something an artist can work with\n• **Figure out your budget** based on what you actually want\n• **Match you with the right artist** for your style and location\n\nWhen you're ready, I'll put together a brief and send it to the best matching artists. They'll respond with an offer — you accept, we handle everything.\n\n**What are you thinking about getting?**`,
-  timestamp: new Date().toISOString(),
-}
-
 const LACEY_WELCOME: Message = {
   role: 'assistant',
   content: `Hey — this is the booking assistant for **Lacey Rawson** (RawSunArt). I help you shape your idea and get it in front of Lacey so she can quote it.\n\nShe's a watercolor specialist — also botanical, illustrative, fine line, and black & grey. All custom, never copied.\n\nTell me what you're thinking and roughly where on the body, and I'll take it from there. **What do you want to get?**`,
   timestamp: new Date().toISOString(),
 }
 
-export function AgentChat({ mode }: { mode?: string } = {}) {
-  const router = useRouter()
-  const isLacey = mode === 'lacey'
-  const starterPrompts = isLacey ? LACEY_STARTER_PROMPTS : STARTER_PROMPTS
-  const [messages, setMessages] = useState<Message[]>([isLacey ? LACEY_WELCOME : WELCOME])
+export function AgentChat() {
+  const starterPrompts = LACEY_STARTER_PROMPTS
+  const [messages, setMessages] = useState<Message[]>([LACEY_WELCOME])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [briefReady, setBriefReady] = useState(false)
@@ -90,7 +74,7 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
       const res = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg], ...(mode ? { mode } : {}) }),
+        body: JSON.stringify({ messages: [...messages, userMsg] }),
       })
 
       if (!res.ok) throw new Error('Agent error')
@@ -168,7 +152,7 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
       const res = await fetch('/api/brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages, brief, briefToken, mode, sessionId: getSessionId() }),
+        body: JSON.stringify({ messages: allMessages, brief, briefToken, sessionId: getSessionId() }),
       })
       if (!res.ok) { setSaveError(true); return }
       const data = await res.json().catch(() => ({}))
@@ -183,21 +167,16 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
 
   async function submitBrief() {
     if (saving || saveError) return
-    if (mode === 'lacey') {
-      // Contained confirmation — never route a RawSunArt client into the marketplace.
-      // Opt-ins are recorded only if the client ticked one; if this fails, the
-      // record says nothing and nothing is sent, which is the safe side.
-      if (inquiry && (consent.artist_updates || consent.elitetatz_network)) {
-        await fetch('/api/consent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matchId: inquiry.matchId, t: inquiry.t, choices: consent, source: 'concierge' }),
-        }).catch(() => {})
-      }
-      setSubmitted(true)
-    } else {
-      router.push('/matches')
+    // Opt-ins are recorded only if the client ticked one; if this fails, the
+    // record says nothing and nothing is sent, which is the safe side.
+    if (inquiry && (consent.artist_updates || consent.elitetatz_network)) {
+      await fetch('/api/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: inquiry.matchId, t: inquiry.t, choices: consent, source: 'concierge' }),
+      }).catch(() => {})
     }
+    setSubmitted(true)
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -234,9 +213,7 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
               <span className="text-sm font-semibold text-[#c9a84c]">Your brief is ready!</span>
             </div>
             <p className="text-xs text-[#6b6b6b] mb-3">
-              {isLacey
-                ? "I've put together your brief. Send it to Lacey and she'll follow up by email with a quote and availability."
-                : "I've put together your tattoo brief. Ready to send it to matching artists?"}
+              I&apos;ve put together your brief. Send it to Lacey and she&apos;ll follow up by email with a quote and availability.
             </p>
             {saveError && (
               <div role="alert" className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
@@ -252,20 +229,18 @@ export function AgentChat({ mode }: { mode?: string } = {}) {
                 </button>
               </div>
             )}
-            {isLacey && (
-              <div className="mb-3">
-                <ConsentBoxes
-                  value={consent}
-                  onChange={(scope, granted) => setConsent((c) => ({ ...c, [scope]: granted }))}
-                />
-              </div>
-            )}
+            <div className="mb-3">
+              <ConsentBoxes
+                value={consent}
+                onChange={(scope, granted) => setConsent((c) => ({ ...c, [scope]: granted }))}
+              />
+            </div>
             <button
               onClick={submitBrief}
               disabled={saving || saveError}
               className="flex items-center justify-between w-full bg-[#c9a84c] text-black font-semibold px-4 py-3 rounded-xl text-sm disabled:opacity-60"
             >
-              <span>{saving ? 'Saving…' : isLacey ? 'Send to Lacey' : 'Find My Artist'}</span>
+              <span>{saving ? 'Saving…' : 'Send to Lacey'}</span>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           </div>

@@ -7,14 +7,14 @@ function supabaseConfigured(): boolean {
   return Boolean(url && /^https?:\/\//.test(url) && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
 
-// In single-artist mode the mock marketplace must be unreachable: no
-// fictional artists, no dead payment form. Every marketplace surface bounces
-// to the artist landing page, and nobody can open a new account.
+// The mock marketplace was removed on 2026-10-17. Its old URLs still circulate,
+// so they bounce to the artist landing page instead of a 404. In single-artist
+// mode nobody can open a new account either.
 
 const SINGLE_ARTIST_HOME = '/rawsunart'
 
-// Exact paths that belong to the marketplace, not the pilot.
-const MARKETPLACE_PATHS = new Set([
+// Exact paths that belonged to the marketplace.
+const RETIRED_PATHS = new Set([
   '/',
   '/explore',
   '/flash',
@@ -27,11 +27,9 @@ const MARKETPLACE_PATHS = new Set([
   '/settings',
 ])
 
-function isMarketplacePath(pathname: string): boolean {
-  if (MARKETPLACE_PATHS.has(pathname)) return true
-  // Mock artist profiles (/artist/1, /artist/2…). Artist signup stays reachable.
-  if (pathname.startsWith('/artist/') && !pathname.startsWith('/artist/signup')) return true
-  return false
+function isRetiredPath(pathname: string): boolean {
+  // Mock artist profiles (/artist/1, /artist/2…).
+  return RETIRED_PATHS.has(pathname) || pathname.startsWith('/artist/')
 }
 
 export async function proxy(request: NextRequest) {
@@ -42,7 +40,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  if (singleArtistMode() && isMarketplacePath(pathname)) {
+  // The old artist sign-up form posted nowhere; the real waitlist is /artists.
+  if (pathname === '/artist/signup') {
+    return NextResponse.redirect(new URL('/artists', request.url))
+  }
+  if (isRetiredPath(pathname)) {
     return NextResponse.redirect(new URL(SINGLE_ARTIST_HOME, request.url))
   }
   if (singleArtistMode() && pathname.startsWith('/auth/signup')) {
@@ -98,8 +100,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Everything except the public community API, Next internals, the favicon
-  // and image assets. That covers every marketplace path above plus
-  // /dashboard and /artist/*.
+  // and image assets. That covers every retired path above plus /dashboard.
   matcher: [
     '/((?!api/community|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
