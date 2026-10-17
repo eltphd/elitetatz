@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Zap, MapPin, Star, CheckCircle, X, ArrowLeft } from 'lucide-react'
+import { Zap, MapPin, Star, CheckCircle, X } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import { FlashCard } from '@/components/FlashCard'
 import { MOCK_FLASH } from '@/lib/mock-data'
@@ -39,7 +39,7 @@ export default function FlashPage() {
         <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-3 mb-4 flex items-start gap-3">
           <Zap className="w-4 h-4 text-[#c9a84c] shrink-0 mt-0.5" />
           <p className="text-xs text-[#6b6b6b] leading-relaxed">
-            Flash designs are ready-to-tattoo. Buy one, it's yours alone — the listing disappears the moment you pay. No agent needed, no waiting for quotes.
+            Flash designs are ready-to-tattoo. Buy one, it&apos;s yours alone — the listing disappears the moment you pay. No agent needed, no waiting for quotes.
           </p>
         </div>
 
@@ -111,7 +111,7 @@ export default function FlashPage() {
 
             <div className="flex items-center gap-4 mb-4 text-xs text-[#6b6b6b]">
               <span className="capitalize px-2.5 py-1 bg-[#1e1e1e] rounded-full border border-[#2a2a2a]">{selected.style}</span>
-              <span>{selected.size_inches}" piece</span>
+              <span>{selected.size_inches}&quot; piece</span>
             </div>
 
             <div className="mb-4">

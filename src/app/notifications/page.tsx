@@ -1,7 +1,7 @@
 'use client'
 
 import { BottomNav } from '@/components/BottomNav'
-import { Bell, Star, CheckCircle, Clock, Sparkles, ArrowRight } from 'lucide-react'
+import { Bell, CheckCircle, Clock, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 
 const MOCK_NOTIFICATIONS = [

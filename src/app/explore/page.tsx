@@ -14,7 +14,7 @@ export default function ExplorePage() {
   const [query, setQuery] = useState('')
   const [selectedStyle, setSelectedStyle] = useState<ArtistStyle | null>(null)
   const [selectedCity, setSelectedCity] = useState('All')
-  const [maxBudget, setMaxBudget] = useState<number | null>(null)
+  const [maxBudget] = useState<number | null>(null)
 
   const filtered = MOCK_ARTISTS.filter((a) => {
     if (query && !a.name.toLowerCase().includes(query.toLowerCase()) && !a.styles.some(s => s.includes(query.toLowerCase()))) return false
