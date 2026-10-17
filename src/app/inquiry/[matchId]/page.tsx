@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Sparkles, Clock, HelpCircle, CheckCircle, CalendarCheck, XCircle, ShieldCheck } from 'lucide-react'
-import { verifyMatch, depositUrl } from '@/lib/tokens'
+import { verifyMatch } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'

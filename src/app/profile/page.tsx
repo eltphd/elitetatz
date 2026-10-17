@@ -1,7 +1,7 @@
 'use client'
 
 import { BottomNav } from '@/components/BottomNav'
-import { User, ChevronRight, Star, Heart, Settings, LogOut, Shield } from 'lucide-react'
+import { User, ChevronRight, Star, Heart, Settings, Shield } from 'lucide-react'
 import Link from 'next/link'
 
 const MENU_ITEMS = [

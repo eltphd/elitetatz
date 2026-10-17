@@ -39,7 +39,7 @@ export function FlashCard({
       </div>
       <div className="p-3">
         <p className="font-semibold text-sm text-white leading-tight truncate">{flash.title}</p>
-        <p className="text-[10px] text-[#6b6b6b] capitalize mt-0.5">{flash.style} · {flash.size_inches}"</p>
+        <p className="text-[10px] text-[#6b6b6b] capitalize mt-0.5">{flash.style} · {flash.size_inches}&quot;</p>
         <div className="flex items-center justify-between mt-2">
           <p className={`text-sm font-bold ${flash.sold ? 'text-[#6b6b6b] line-through' : 'text-[#c9a84c]'}`}>
             {formatPrice(flash.price_cents)}

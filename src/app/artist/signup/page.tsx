@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Camera, Plus, X } from 'lucide-react'
+import { ArrowLeft, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { ArtistStyle } from '@/lib/types'
 
@@ -155,7 +155,7 @@ export default function ArtistSignupPage() {
             </div>
             <h2 className="text-xl font-bold mb-2">Application submitted!</h2>
             <p className="text-sm text-[#6b6b6b] mb-6">
-              We review all artists manually to maintain quality. You'll hear back within 48–72 hours.
+              We review all artists manually to maintain quality. You&apos;ll hear back within 48–72 hours.
             </p>
             <Link href="/" className="inline-flex items-center justify-center bg-[#c9a84c] text-black font-semibold px-6 py-3 rounded-xl text-sm">
               Back to Home

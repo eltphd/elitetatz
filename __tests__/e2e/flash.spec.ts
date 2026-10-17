@@ -28,7 +28,6 @@ test.describe('Flash Drop page', () => {
   test('clicking a flash card opens detail sheet', async ({ page }) => {
     // Click first available card
     const firstCard = page.locator('button').filter({ hasText: /\$/ }).first()
-    const title = await firstCard.locator('p').first().textContent()
     await firstCard.click()
 
     // Detail sheet should be visible
