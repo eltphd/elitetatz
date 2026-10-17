@@ -68,6 +68,8 @@ interface WelcomeEmailArgs {
   recipientName?: string
   eventTitle?: string
   giveawayEntry?: boolean
+  /** one-click confirm; only confirmed members are emailed after this message */
+  confirmUrl: string
   unsubscribeUrl: string
 }
 
@@ -90,7 +92,10 @@ export function buildWelcomeEmail(a: WelcomeEmailArgs): { subject: string; html:
 <div style="max-width:560px;margin:0 auto;padding:40px 24px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
   <p style="font-family:Georgia,serif;font-style:italic;font-size:20px;color:#c9a050;margin:0 0 28px;">${a.artistHandle}</p>
   <h1 style="font-family:Georgia,serif;font-weight:400;font-size:30px;line-height:1.2;color:#f0ebe0;margin:0 0 18px;">You're <em style="color:#c9a050;">in.</em></h1>
-  <p style="margin:0 0 16px;color:#a09070;">${hi} — this is ${a.artistName}. Thanks for joining my Collectors Club.</p>
+  <p style="margin:0 0 16px;color:#a09070;">${hi} — this is ${a.artistName}. Thanks for joining my Collectors Club. One tap so I know this inbox is really you:</p>
+  <div style="text-align:center;margin:0 0 28px;">
+    <a href="${a.confirmUrl}" style="display:inline-block;background:#c9a050;color:#0a0805;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-decoration:none;padding:14px 28px;border-radius:100px;">Yes, keep me on the list</a>
+  </div>
   ${eventLine}
   ${giveawayBlock}
   <p style="margin:0 0 8px;color:#f0ebe0;font-weight:600;">Here's what being on this list actually gets you:</p>
@@ -101,7 +106,7 @@ export function buildWelcomeEmail(a: WelcomeEmailArgs): { subject: string; html:
     <tr><td style="padding:10px 0;color:#a09070;">💌 <strong style="color:#f0ebe0;">A monthly studio diary</strong> — process, works in progress, honest notes. No spam, ever.</td></tr>
   </table>
   <div style="text-align:center;margin:0 0 28px;">
-    <a href="${a.siteUrl}" style="display:inline-block;background:#c9a050;color:#0a0805;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;text-decoration:none;padding:14px 28px;border-radius:100px;">See the work</a>
+    <a href="${a.siteUrl}" style="display:inline-block;border:1px solid rgba(201,160,80,0.4);color:#c9a050;font-size:13px;font-weight:600;text-decoration:none;padding:13px 24px;border-radius:100px;">See the work</a>
     &nbsp;&nbsp;
     <a href="${a.instagramUrl}" style="display:inline-block;border:1px solid rgba(201,160,80,0.4);color:#c9a050;font-size:13px;font-weight:600;text-decoration:none;padding:13px 24px;border-radius:100px;">Follow along</a>
   </div>
@@ -110,6 +115,7 @@ export function buildWelcomeEmail(a: WelcomeEmailArgs): { subject: string; html:
 </body></html>`
 
   const text = `${hi} — this is ${a.artistName}. Thanks for joining my Collectors Club.
+One tap so I know this inbox is really you: ${a.confirmUrl}
 ${a.eventTitle ? `So glad you stopped by the booth at ${a.eventTitle}.\n` : ''}${a.giveawayEntry ? `You're entered in the original art giveaway — winner announced by email.\n` : ''}
 What this list gets you:
 - 24-hour early access to pottery & original art drops

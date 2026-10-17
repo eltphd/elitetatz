@@ -75,6 +75,40 @@ export function verifyBrief(brief: Record<string, unknown>, token: string | null
   return safeEqual(sig, sign(`brief.${issued}.${canonical(brief)}`))
 }
 
+// Form stamp for the public sign-up forms: proof that the page was loaded by
+// this server at least STAMP_MIN_MS ago (a bot that posts the instant it
+// fetches the page fails) and at most STAMP_MAX_MS ago (a stamp cannot be
+// harvested once and replayed for weeks). Minted by GET /api/community/stamp.
+const STAMP_MIN_MS = 3_000
+const STAMP_MAX_MS = 24 * 60 * 60 * 1000
+
+export function signStamp(now = Date.now()): string {
+  const issued = now.toString(36)
+  return `${issued}.${sign(`stamp.${issued}`)}`
+}
+
+export type StampVerdict = 'ok' | 'missing' | 'forged' | 'fast' | 'stale'
+
+export function verifyStamp(token: unknown, now = Date.now()): StampVerdict {
+  if (!linksConfigured()) return 'ok' // no secret, no check (dev only; production fails closed elsewhere)
+  if (typeof token !== 'string' || !token) return 'missing'
+  const [issued, sig] = token.split('.')
+  if (!issued || !sig) return 'forged'
+  const issuedMs = parseInt(issued, 36)
+  if (!Number.isFinite(issuedMs) || !safeEqual(sig, sign(`stamp.${issued}`))) return 'forged'
+  if (now - issuedMs < STAMP_MIN_MS) return 'fast'
+  if (now - issuedMs > STAMP_MAX_MS) return 'stale'
+  return 'ok'
+}
+
+// Keyed hash of a client address for the rejection log: lets Erica see "one
+// address, 400 attempts" without the log holding the address itself.
+export function hashIp(ip: string): string | null {
+  const key = secret()
+  if (!key) return null
+  return createHmac('sha256', key).update(`ip.${ip}`).digest('base64url').slice(0, 16)
+}
+
 export function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.vercel.app').replace(/\/$/, '')
 }
