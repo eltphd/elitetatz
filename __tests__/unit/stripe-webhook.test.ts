@@ -128,7 +128,7 @@ describe('payment_intent.succeeded', () => {
     expect(writes(current.calls, 'matches', 'update').some((c) => (c.payload as { stripe_transfer_id?: string }).stripe_transfer_id === 'tr_1')).toBe(true)
     expect(notifyArtist).toHaveBeenCalledTimes(1)
     expect(notifyClient).toHaveBeenCalledTimes(1)
-    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { amount_usd: 100, payout: 'sent', target: 'artist' })
+    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { via: 'stripe', amount_usd: 100, payout: 'sent', target: 'artist' })
   })
 
   it('pays the shop account when the match says so', async () => {
@@ -144,7 +144,7 @@ describe('payment_intent.succeeded', () => {
     expect(transfersCreate).not.toHaveBeenCalled()
     const notes = writes(current.calls, 'match_messages', 'insert').map((c) => (c.payload as { body: string }).body)
     expect(notes.some((b) => b.includes('held by TatzAI'))).toBe(true)
-    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { amount_usd: 100, payout: 'held', target: 'artist' })
+    expect(track).toHaveBeenCalledWith('deposit_paid', expect.any(Request), { via: 'stripe', amount_usd: 100, payout: 'held', target: 'artist' })
   })
 
   it('still answers 200 when the transfer itself fails, so Stripe does not re-run the flip', async () => {

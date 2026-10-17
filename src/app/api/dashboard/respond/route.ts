@@ -2,6 +2,7 @@ import { artistContext } from '@/lib/artist-session'
 import { notifyClient } from '@/lib/notify'
 import { inquiryUrl } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
+import { track } from '@/lib/analytics'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 
 // The artist's three buttons: Accept (quote + dates), Need more info, Pass.
@@ -242,6 +243,9 @@ If you'd like to run a different idea past her, you're always welcome to start a
   } catch (err) {
     console.error('respond notify:', err)
   }
+
+  // The shop-collected deposit is the booking moment while deposits stay with AION.
+  if (action === 'deposit_received') await track('deposit_paid', req, { via: 'shop_checkout' })
 
   return Response.json({ ok: true, status: nextStatus })
 }

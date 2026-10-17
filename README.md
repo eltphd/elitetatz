@@ -2,7 +2,7 @@
 
 The booking platform behind [rawsunart.com](https://rawsunart.com), running as a single-artist pilot for Lacey Rawson (RawSunArt).
 
-A client chats with an AI concierge written in Lacey's voice. The concierge collects a brief and contact details, and Lacey answers from her inbox with one of three buttons: **Accept** (quote + dates), **Need more info**, or **Pass**. The client follows along on a signed link and pays the deposit there. Lacey's fee to the platform is $25 per booked lead, capped at 10 a month. Clients pay nothing beyond the deposit.
+A client chats with an AI concierge written in Lacey's voice. The concierge collects a brief and contact details, and Lacey answers from her inbox with one of three buttons: **Accept** (quote + dates), **Need more info**, or **Pass**. The client follows along on a signed link, which carries the studio's deposit link once Lacey accepts. Lacey's fee to the platform is $25 per booked lead, capped at 10 a month. Clients pay nothing beyond the deposit.
 
 Stack: Next.js 16 (App Router, `src/proxy.ts`), Supabase (Postgres + Auth), Stripe (PaymentIntents + Connect), Anthropic (concierge), Resend (email), Dialpad (SMS), Cloudflare Turnstile. Hosted on Vercel.
 
@@ -14,7 +14,9 @@ vercel env pull .env.local --environment=preview   # or copy .env.example and fi
 npm run dev                                         # http://localhost:3000/rawsunart
 ```
 
-`.env.example` documents every variable the code reads. Anything optional degrades instead of crashing: no Stripe key sends deposits to the shop's own checkout, no Resend key skips email, no Dialpad token skips SMS.
+`.env.example` documents every variable the code reads. Anything optional degrades instead of crashing: no Resend key skips email, no Dialpad token skips SMS.
+
+**Deposits go to AION's own checkout** (Square) and Lacey marks them received in her inbox. The Stripe path with the 80/20 payout exists but stays off until `PLATFORM_DEPOSITS=on` *and* a Stripe key are set, so adding Stripe keys alone never changes where clients pay.
 
 ## Checks
 
