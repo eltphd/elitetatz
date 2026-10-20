@@ -40,7 +40,9 @@ CI (`.github/workflows/ci.yml`) runs the first three on every pull request and o
 | `src/app/api/community/*` | Collectors Club: sign-up, confirm, unsubscribe, reconnect, artist leads, called from rawsunart.com |
 | `src/app/api/stripe/*`, `api/webhooks/stripe` | Deposit PaymentIntents, Connect onboarding, webhook (paid → booked, 80% payout) |
 | `src/app/artists` | Waitlist page for other artists |
-| `src/lib/artists/lacey-rawson.ts` | Lacey's rates, deposit policy, voice and studio facts |
+| `src/lib/artists/lacey-rawson.ts` | Lacey's rates, deposit policy, voice and studio facts; how the concierge reads a reference and what it leaves open |
+| `src/lib/brief.ts` | One reading of the concierge brief: references, scale check, what is still to settle, the drafted More-info question |
+| `src/components/useSpeechInput.ts`, `MicButton.tsx` | Voice input, transcribed in the browser; used by the concierge and Lacey's More-info box |
 | `src/proxy.ts` | Session refresh, `/dashboard` guard, redirects for retired routes |
 | `supabase/migrations` | Every database change, in order |
 | `supabase/schema.sql` | Generated snapshot of production (reference only) |
@@ -58,4 +60,5 @@ Every public endpoint can trigger an email, so each one stacks defenses: a per-I
 ## Docs
 
 - `docs/PILOT-STRATEGY-2026-09-21.md`: why the pilot is shaped this way.
+- `docs/INTAKE-CLARITY-2026-10-20.md`: the concierge reads the reference, flags what is still open for Lacey, and takes voice.
 - `AGENTS.md`: Next.js 16 differs from older versions; read `node_modules/next/dist/docs/` before changing framework code.

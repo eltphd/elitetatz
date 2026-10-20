@@ -95,6 +95,39 @@ export interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
+  // How the client put it in. Spoken turns are transcribed in the browser
+  // and sent as text; the mark stays on the saved conversation.
+  input?: 'text' | 'voice'
+}
+
+// What a reference image is there for, in the client's own choice of words.
+// The six keepers are the whole vocabulary the concierge offers.
+export interface ReferenceKeeper {
+  for: Array<'subject' | 'style' | 'density' | 'size' | 'color' | 'flow'>
+  note: string
+}
+
+// The brief the concierge emits (src/lib/artists/lacey-rawson.ts). Read it
+// through src/lib/brief.ts, never by trusting a field directly.
+export interface ConciergeBrief {
+  concept: string
+  styles: string[]
+  placement: string
+  size: string
+  has_reference: boolean
+  creative_freedom: boolean
+  budget_min_cents: number
+  budget_max_cents: number
+  deposit_ready: boolean
+  feasibility_flags: string[]
+  reference_keepers: ReferenceKeeper[]
+  scale_check: string
+  scale_confirmed: boolean
+  open_questions: string[]
+  client_name: string
+  client_email: string
+  client_phone: string
+  readiness_score: number
 }
 
 export interface ClientBrief {

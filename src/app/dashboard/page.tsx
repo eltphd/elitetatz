@@ -2,12 +2,13 @@ import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet, Link2, Receipt } from 'lucide-react'
+  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet, Link2, Receipt, HelpCircle } from 'lucide-react'
 import { LeadActions } from './LeadActions'
 import { ConversationViewer } from './ConversationViewer'
 import type { ThreadMessage } from '@/components/InquiryThread'
 import { inquiryUrl } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
+import { briefFollowUps, referenceLine, suggestedQuestion } from '@/lib/brief'
 
 // Lacey's inbox. Four groups, three buttons, one thread per lead.
 // Everything is read through her session (RLS), nothing depends on the
@@ -232,7 +233,13 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
   const budgetMin = Number(brief.budget_min_cents) || 0
   const budget = budgetMax ? (budgetMin && budgetMin !== budgetMax ? `${money(budgetMin)}–${money(budgetMax)}` : money(budgetMax)) : null
   const readiness = Number(brief.readiness_score)
-  const flags = Array.isArray(brief.feasibility_flags) ? brief.feasibility_flags.map(String).filter(Boolean) : []
+  // What is still open before she quotes (the client's unanswered points and
+  // an unconfirmed scale read) is shown apart from tattoo-ability notes.
+  const followUps = briefFollowUps(brief)
+  const toSettle = followUps.filter((f) => f.kind !== 'feasibility').map((f) => f.text)
+  const flags = followUps.filter((f) => f.kind === 'feasibility').map((f) => f.text)
+  const refs = referenceLine(brief)
+  const scale = str(brief.scale_check)
   const pill = STATUS_PILL[lead.status] ?? { label: lead.status, cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' }
   const depositPaid = ['paid', 'booked', 'completed'].includes(lead.status) || Boolean(lead.stripe_payment_intent_id)
   const actionable =
@@ -286,6 +293,30 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
         )}
       </div>
 
+      {(refs || scale) && (
+        <div className="mb-3 text-[11px] text-[#9b9b9b] space-y-0.5">
+          {refs && <p><span className="text-[#6b6b6b]">Reference is for</span> {refs}</p>}
+          {scale && (
+            <p>
+              <span className="text-[#6b6b6b]">Scale read</span> {scale}{' '}
+              <span className={brief.scale_confirmed === true ? 'text-green-400' : 'text-amber-300'}>
+                · {brief.scale_confirmed === true ? 'client confirmed' : 'not confirmed'}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {toSettle.length > 0 && (
+        <div className="mb-3 flex items-start gap-1.5 text-[11px] text-[#e0c878] bg-[#c9a84c]/10 border border-[#c9a84c]/25 rounded-lg px-2.5 py-1.5">
+          <HelpCircle className="w-3 h-3 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-0.5">Still to settle before you quote</p>
+            <ul className="space-y-0.5">{toSettle.map((t) => <li key={t}>{t}</li>)}</ul>
+          </div>
+        </div>
+      )}
+
       {flags.length > 0 && (
         <div className="mb-3 flex items-start gap-1.5 text-[11px] text-amber-300/90 bg-amber-900/10 border border-amber-800/30 rounded-lg px-2.5 py-1.5">
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
@@ -306,6 +337,7 @@ function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: T
           status={lead.status as 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'}
           dateRequest={lead.date_request}
           appointmentAt={lead.appointment_at}
+          suggestedQuestion={suggestedQuestion(brief)}
         />
       )}
 

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign, CalendarCheck } from 'lucide-react'
+import { useSpeechInput } from '@/components/useSpeechInput'
+import { MicButton } from '@/components/MicButton'
 
 // Three buttons. Accept opens quote + dates + note; Need more info opens a
 // question box; Pass opens an optional note. One tap each after the fields.
@@ -20,11 +22,15 @@ export function LeadActions({
   status,
   dateRequest,
   appointmentAt,
+  suggestedQuestion,
 }: {
   matchId: string
   status: 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'
   dateRequest?: string | null
   appointmentAt?: string | null
+  // Drafted from what the client could not settle in the chat; pre-fills
+  // "More info" so the follow-up is one tap, not a re-read of the brief.
+  suggestedQuestion?: string
 }) {
   const router = useRouter()
   const [panel, setPanel] = useState<Panel>('idle')
@@ -36,6 +42,18 @@ export function LeadActions({
   const [question, setQuestion] = useState('')
   const [designFee, setDesignFee] = useState('')
   const [when, setWhen] = useState('')
+  const [prefilled, setPrefilled] = useState(false)
+  // She can say the question instead of typing it.
+  const questionBase = useRef('')
+  const speech = useSpeechInput((text) => setQuestion([questionBase.current, text].filter(Boolean).join(' ')))
+  function toggleMic() {
+    if (!speech.listening) questionBase.current = question.trim()
+    speech.toggle()
+  }
+  function openMoreInfo() {
+    if (!question && suggestedQuestion) { setQuestion(suggestedQuestion); setPrefilled(true) }
+    setPanel('more_info')
+  }
 
   async function send(action: 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date') {
     const optimistic: Done =
@@ -140,7 +158,13 @@ export function LeadActions({
     return (
       <div className="space-y-3 pt-1">
         <Field label="What do you need to know?">
-          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} placeholder="Can you send a reference? Color or black and grey?" className={`${INPUT} resize-none`} autoFocus />
+          <div className="relative">
+            <textarea value={question} onChange={(e) => { setQuestion(e.target.value); setPrefilled(false) }} rows={prefilled ? 5 : 3} placeholder="Can you send a reference? Color or black and grey?" className={`${INPUT} resize-none pr-10`} autoFocus />
+            <MicButton supported={speech.supported} listening={speech.listening} onToggle={toggleMic} className="absolute right-1.5 top-1.5" />
+          </div>
+          {prefilled && (
+            <p className="mt-1 text-[10px] text-[#6b6b6b]">Drafted from what the client couldn&apos;t settle in the chat. Edit it or send as is.</p>
+          )}
         </Field>
         <div className="flex gap-2">
           <Cancel onClick={() => setPanel('idle')} />
@@ -247,7 +271,7 @@ export function LeadActions({
         Accept
       </button>
       <button
-        onClick={() => setPanel('more_info')}
+        onClick={openMoreInfo}
         className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#c9a84c]/30 text-[#e0c878] font-semibold py-3 rounded-xl text-sm"
       >
         <HelpCircle className="w-3.5 h-3.5" />

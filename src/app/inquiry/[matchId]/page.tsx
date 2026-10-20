@@ -9,6 +9,7 @@ import { InquiryThread, type ThreadMessage } from '@/components/InquiryThread'
 import { InquiryConsent } from '@/components/ConsentChoices'
 import { currentChoices } from '@/lib/consent'
 import { DateRequest } from '@/components/DateRequest'
+import { briefFollowUps } from '@/lib/brief'
 
 // The client's page. No account: the signed token in the URL is the proof,
 // and it is checked before a single row is read. Wrong or missing token →
@@ -72,6 +73,11 @@ export default async function InquiryPage({
   const size = str(brief.size)
   const clientName = match.client_name || 'You'
   const depositPaid = PAID.includes(match.status) || Boolean(match.stripe_payment_intent_id)
+  // What the chat left open, so the client is not surprised when she asks.
+  const toSettle = ['pending', 'info_requested'].includes(match.status)
+    ? briefFollowUps(brief).filter((f) => f.kind === 'open').map((f) => f.text)
+    : []
+  const scale = str(brief.scale_check)
 
   return (
     <Shell>
@@ -92,6 +98,21 @@ export default async function InquiryPage({
             {size && <Tag>{size}</Tag>}
             <Tag>Sent {fmtDate(match.created_at)}</Tag>
           </div>
+          {scale && (
+            <p className="mt-3 text-xs text-[#9b9b9b]">
+              <span className="text-[#6b6b6b]">How it lands:</span> {scale}
+              {brief.scale_confirmed === true ? '' : ` ${firstName} will check this with you.`}
+            </p>
+          )}
+          {toSettle.length > 0 && (
+            <div className="mt-3 text-xs text-[#9b9b9b]">
+              <p className="text-[#6b6b6b] mb-1">{firstName} will likely ask about:</p>
+              <ul className="list-disc pl-4 space-y-0.5">{toSettle.map((t) => <li key={t}>{t}</li>)}</ul>
+            </div>
+          )}
+          <p className="mt-3 text-[11px] text-[#6b6b6b]">
+            For most pieces {firstName} draws from this brief and shows you the design at your appointment, where small changes happen.
+          </p>
         </div>
       </header>
 

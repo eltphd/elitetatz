@@ -6,6 +6,8 @@ import type { ConsentScope } from '@/lib/consent'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { Send, Loader2, Sparkles, ImagePlus, ChevronRight } from 'lucide-react'
 import { Message } from '@/lib/types'
+import { useSpeechInput } from '@/components/useSpeechInput'
+import { MicButton } from '@/components/MicButton'
 
 // The model writes the brief as a fenced ```brief block plus a BRIEF_READY
 // marker. The server strips them per chunk, which misses a block split across
@@ -35,7 +37,7 @@ const LACEY_STARTER_PROMPTS = [
 
 const LACEY_WELCOME: Message = {
   role: 'assistant',
-  content: `Hey — this is the booking assistant for **Lacey Rawson** (RawSunArt). I help you shape your idea and get it in front of Lacey so she can quote it.\n\nShe's a watercolor specialist — also botanical, illustrative, fine line, and black & grey. All custom, never copied.\n\nTell me what you're thinking and roughly where on the body, and I'll take it from there. **What do you want to get?**`,
+  content: `Hey — this is the booking assistant for **Lacey Rawson** (RawSunArt). I help you shape your idea and get it in front of Lacey so she can quote it.\n\nShe's a watercolor specialist — also botanical, illustrative, fine line, and black & grey. All custom, never copied.\n\nTell me what you're thinking and roughly where on the body, and I'll take it from there. If it's easier to say than type, tap the mic. **What do you want to get?**`,
   timestamp: new Date().toISOString(),
 }
 
@@ -56,6 +58,20 @@ export function AgentChat() {
   const [consent, setConsent] = useState<Record<ConsentScope, boolean>>({ artist_updates: false, elitetatz_network: false })
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // What was typed before the mic started, so the transcript is appended to
+  // it rather than replacing it; and whether the next send came by voice.
+  const voiceBaseRef = useRef('')
+  const spokeRef = useRef(false)
+  const speech = useSpeechInput((text, final) => {
+    const joined = [voiceBaseRef.current, text].filter(Boolean).join(' ')
+    setInput(joined)
+    if (text) spokeRef.current = true
+    if (final) inputRef.current?.focus()
+  })
+  function toggleMic() {
+    if (!speech.listening) voiceBaseRef.current = input.trim()
+    speech.toggle()
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -64,8 +80,16 @@ export function AgentChat() {
   async function send(text?: string) {
     const content = (text || input).trim()
     if (!content || loading) return
+    if (speech.listening) speech.stop()
 
-    const userMsg: Message = { role: 'user', content, timestamp: new Date().toISOString() }
+    const userMsg: Message = {
+      role: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+      ...(spokeRef.current && !text ? { input: 'voice' as const } : {}),
+    }
+    spokeRef.current = false
+    voiceBaseRef.current = ''
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setLoading(true)
@@ -88,6 +112,7 @@ export function AgentChat() {
       let streamBrief: Record<string, unknown> | null = null
       let streamBriefToken: string | null = null
       let streamReady = false
+      let streamError = false
 
       const assistantMsg: Message = { role: 'assistant', content: '', timestamp: new Date().toISOString() }
       setMessages((prev) => [...prev, assistantMsg])
@@ -122,9 +147,20 @@ export function AgentChat() {
                 streamReady = true
                 setBriefReady(true)
               }
+              if (data.error) streamError = true
             } catch {}
           }
         }
+      }
+      // An agent error used to leave an empty bubble and nothing else, which
+      // reads as "it ignored me". Say so instead, in the same bubble.
+      if (streamError && !assistantContent.trim()) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { ...assistantMsg, content: "Sorry, I hit a snag. Try again in a moment, or email Lacey at " + ARTIST_CONFIG.email + "." }
+          return updated
+        })
+        return
       }
       if (streamReady) {
         await saveBrief(
@@ -292,11 +328,12 @@ export function AgentChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Describe your tattoo idea..."
+            placeholder={speech.listening ? 'Listening… tap the square when you\'re done' : 'Describe your tattoo idea, or tap the mic'}
             rows={1}
             className="flex-1 bg-transparent text-sm text-white placeholder-[#6b6b6b] resize-none outline-none max-h-32 leading-relaxed"
             style={{ fieldSizing: 'content' } as React.CSSProperties}
           />
+          <MicButton supported={speech.supported} listening={speech.listening} onToggle={toggleMic} className="mb-0.5" />
           <button
             onClick={() => send()}
             disabled={!input.trim() || loading}

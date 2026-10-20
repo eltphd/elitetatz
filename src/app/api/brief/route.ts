@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics'
 import { notifyArtist, notifyClient } from '@/lib/notify'
 import { inquiryUrl, appUrl, linksConfigured, verifyBrief } from '@/lib/tokens'
 import { hasRecentInquiry } from '@/lib/inquiry'
+import { briefFollowUps, followUpLines, referenceLine } from '@/lib/brief'
 
 // Called by AgentChat when BRIEF_READY fires.
 // Persists the conversation + brief, opens a pending match for the artist,
@@ -150,7 +151,14 @@ Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONF
       }),
     ])
 
-    await track('inquiry_sent', req)
+    // Counts only: how many briefs arrive with something still open, whether
+    // the scale was confirmed in the chat, and whether the client spoke.
+    const followUps = briefFollowUps(brief)
+    await track('inquiry_sent', req, {
+      open_questions: followUps.filter((f) => f.kind === 'open').length,
+      scale_confirmed: brief.scale_confirmed === true,
+      voice: messages.some((m) => m.input === 'voice'),
+    })
     return Response.json({ conversationId: conversation.id, matchId: match.id, inquiryUrl: link })
   } catch (err) {
     console.error('brief route:', err)
@@ -168,9 +176,12 @@ async function notifyLacey(
   const placement = str(brief.placement) || 'TBD'
   const size = str(brief.size) || 'TBD'
   const budget = brief.budget_max_cents ? `$${Number(brief.budget_max_cents) / 100}` : 'TBD'
-  const flags = Array.isArray(brief.feasibility_flags) && brief.feasibility_flags.length
-    ? brief.feasibility_flags.join('; ')
-    : 'none'
+  const refs = referenceLine(brief)
+  const scale = str(brief.scale_check)
+  const scaleLine = scale
+    ? `${scale} — ${brief.scale_confirmed === true ? 'client confirmed' : 'NOT confirmed'}`
+    : brief.has_reference ? 'not run' : 'n/a (no reference)'
+  const followUps = followUpLines(brief)
   const dashboard = `${appUrl()}/dashboard`
 
   const text = `New inquiry via your concierge.
@@ -182,11 +193,11 @@ Concept: ${concept}
 Style: ${style}
 Placement: ${placement}
 Size: ${size}
-Reference: ${brief.has_reference ? 'yes' : 'no'} · Creative freedom: ${brief.creative_freedom ? 'yes' : 'no'}
+Reference: ${brief.has_reference ? 'yes' : 'no'} · Creative freedom: ${brief.creative_freedom ? 'yes' : 'no'}${refs ? `\nWhat the reference is for: ${refs}` : ''}
+Scale check: ${scaleLine}
 Budget: ${budget} · Deposit ready: ${brief.deposit_ready ? 'yes' : 'not yet'}
-Flags: ${flags}
 Readiness: ${brief.readiness_score ?? 0}/100
-
+${followUps.length ? `\nStill to settle before you quote (the "More info" button is pre-filled with these):\n${followUps.map((l) => `- ${l}`).join('\n')}\n` : '\nNothing left open: the client confirmed the read. Quote from the brief.\n'}
 It is waiting in your inbox: ${dashboard}
 Accept with a quote, ask for more info, or pass. Ref ${matchId.slice(0, 8)}.`
 
