@@ -112,6 +112,7 @@ export function AgentChat() {
       let streamBrief: Record<string, unknown> | null = null
       let streamBriefToken: string | null = null
       let streamReady = false
+      let streamError = false
 
       const assistantMsg: Message = { role: 'assistant', content: '', timestamp: new Date().toISOString() }
       setMessages((prev) => [...prev, assistantMsg])
@@ -146,9 +147,20 @@ export function AgentChat() {
                 streamReady = true
                 setBriefReady(true)
               }
+              if (data.error) streamError = true
             } catch {}
           }
         }
+      }
+      // An agent error used to leave an empty bubble and nothing else, which
+      // reads as "it ignored me". Say so instead, in the same bubble.
+      if (streamError && !assistantContent.trim()) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { ...assistantMsg, content: "Sorry, I hit a snag. Try again in a moment, or email Lacey at " + ARTIST_CONFIG.email + "." }
+          return updated
+        })
+        return
       }
       if (streamReady) {
         await saveBrief(
