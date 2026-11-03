@@ -49,7 +49,8 @@ describe('operator approvals route', () => {
     expect(up.payload).toMatchObject({ artist_id: 'artist-1', kind: 'email_campaign', key: 'rsa-reconnect-1', status: 'pending', audience_count: 197, artist_notes: null, decided_at: null })
     expect(notify).toHaveBeenCalledTimes(1)
     expect(notify.mock.calls[0][0].subject).toContain('Reconnect')
-    expect(notify.mock.calls[0][0].text).toContain('/dashboard/approvals')
+    expect(notify.mock.calls[0][0].text).toContain('https://elitetatz.vercel.app/dashboard/approvals')
+    expect(notify.mock.calls[0][0].sms).toContain('https://elitetatz.vercel.app/dashboard/approvals')
   })
 
   test('GET reads the decision back by key, scoped to the artist', async () => {
