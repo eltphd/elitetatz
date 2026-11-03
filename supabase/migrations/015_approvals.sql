@@ -1,5 +1,5 @@
 -- 015 — Approvals: things Erica wants Lacey to sign off on before they go out (2026-11-03).
--- Not yet applied to production. Apply in the Supabase SQL editor, then note the date here.
+-- Applied to production by Erica in the Supabase SQL editor on 2026-11-03.
 --
 -- One row per thing awaiting her word: an email campaign to the client list,
 -- a blog post for rawsunart.com. The operator (or a script) submits the
