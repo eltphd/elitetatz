@@ -36,7 +36,11 @@ CI (`.github/workflows/ci.yml`) runs the first three on every pull request and o
 | `src/app/rawsunart` | Lacey's landing page and the entry to the concierge |
 | `src/app/agent` + `api/agent`, `api/brief` | Concierge chat; a finished brief opens a match and notifies both sides |
 | `src/app/inquiry/[matchId]`, `deposit/[matchId]` | Client pages, opened by signed links (`src/lib/tokens.ts`), no account |
-| `src/app/dashboard` + `api/dashboard/*` | Lacey's inbox, payouts, billing and Google connection, behind Supabase login |
+| `src/app/dashboard` + `api/dashboard/*` | Lacey's inbox (every channel, one card: thread, reference files, notes, assistant), payouts, billing and Google connection, behind Supabase login |
+| `src/app/api/inbound/*` + `src/lib/inbound/*` | Channel adapters: Resend inbound email, Chatwoot (Instagram DM, Messenger), Dialpad SMS. Each verifies its webhook, normalizes the message and hands it to `ingest.ts` |
+| `src/lib/channels.ts`, `attachments.ts`, `quote.ts`, `assistant.ts` | Lead model across channels; private reference files (`lead-files` bucket, signed URLs); the starting number from her bands; what the inbox assistant knows |
+| `src/app/demo/inbox` | The inbox with four made-up leads, nothing live: what to show the artist |
+| `src/app/dashboard/new` | Add a lead by hand (a pasted DM, a voicemail) |
 | `src/app/api/community/*` | Collectors Club: sign-up, confirm, unsubscribe, reconnect, artist leads, called from rawsunart.com |
 | `src/app/api/stripe/*`, `api/webhooks/stripe` | Deposit PaymentIntents, Connect onboarding, webhook (paid → booked, 80% payout) |
 | `src/app/artists` | Waitlist page for other artists |
@@ -61,4 +65,6 @@ Every public endpoint can trigger an email, so each one stacks defenses: a per-I
 
 - `docs/PILOT-STRATEGY-2026-09-21.md`: why the pilot is shaped this way.
 - `docs/INTAKE-CLARITY-2026-10-20.md`: the concierge reads the reference, flags what is still open for Lacey, and takes voice.
+- `docs/LEAD-INBOX-2026-11-03.md`: one inbox for every channel (web, concierge, email, Instagram, Messenger, text): why Chatwoot and not ManyChat, how each channel is connected, what the assistant is and is not allowed to do.
+- `supabase/scorecard.sql`: the weekly numbers (leads by channel, response time, quoted, booked) in one query.
 - `AGENTS.md`: Next.js 16 differs from older versions; read `node_modules/next/dist/docs/` before changing framework code.

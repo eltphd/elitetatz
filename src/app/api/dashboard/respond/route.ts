@@ -4,6 +4,7 @@ import { inquiryUrl } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
 import { track } from '@/lib/analytics'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+import { chatwootReply } from '@/lib/inbound/chatwoot'
 
 // The artist's three buttons: Accept (quote + dates), Need more info, Pass.
 // Auth is the artist's session; match reads/updates go through RLS. Thread
@@ -15,8 +16,11 @@ import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 // deposit_received: the shop collected the deposit outside the platform
 // (e.g. AION's Square checkout) and the artist confirms it by hand.
 
-type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date'
-const ACTIONS: Action[] = ['accept', 'more_info', 'decline', 'deposit_received', 'confirm_date']
+// review_request: after the session, one tap sends the client her Google
+// review link (GOOGLE_REVIEW_URL). It changes nothing else and is only ever
+// sent on that tap.
+type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date' | 'review_request'
+const ACTIONS: Action[] = ['accept', 'more_info', 'decline', 'deposit_received', 'confirm_date', 'review_request']
 
 // Statuses the artist may still act on. Everything else is a 409.
 const OPEN: Record<string, Action[]> = {
@@ -24,7 +28,8 @@ const OPEN: Record<string, Action[]> = {
   info_requested: ['accept', 'more_info', 'decline'],
   accepted: ['deposit_received'],
   paid: ['confirm_date'],
-  booked: ['confirm_date'],
+  booked: ['confirm_date', 'review_request'],
+  completed: ['review_request'],
 }
 
 const str = (v: unknown) => (v == null ? '' : String(v)).trim()
@@ -65,10 +70,14 @@ export async function POST(req: Request) {
   if (action === 'more_info' && !message) {
     return Response.json({ error: 'Write the question you want to ask' }, { status: 400 })
   }
+  const reviewUrl = process.env.GOOGLE_REVIEW_URL?.trim() ?? ''
+  if (action === 'review_request' && !reviewUrl) {
+    return Response.json({ error: 'Add GOOGLE_REVIEW_URL (the Google Business "write a review" link) first' }, { status: 400 })
+  }
 
   const { data: match } = await db
     .from('matches')
-    .select('id, status, client_name, client_email, client_phone, ai_summary, client_brief, proposed_dates, date_request')
+    .select('id, status, client_name, client_email, client_phone, ai_summary, client_brief, proposed_dates, date_request, external_thread_id')
     .eq('id', matchId)
     .eq('artist_id', artist.id)
     .single()
@@ -108,6 +117,10 @@ export async function POST(req: Request) {
     notifType = 'booked'
     updates.appointment_at = new Date(appointmentAt).toISOString()
     threadBody = `${match.status === 'booked' ? 'Rescheduled' : 'Appointment confirmed'}: ${fmtWhen(updates.appointment_at as string)}${message ? `\n${message}` : ''}`
+  } else if (action === 'review_request') {
+    nextStatus = match.status
+    notifType = 'review_request'
+    threadBody = `Thank you for sitting with me${message ? `. ${message}` : ''}. If you have a minute, a Google review helps more than you'd think: ${reviewUrl}`
   } else if (action === 'deposit_received') {
     nextStatus = 'paid'
     notifType = 'deposit_received'
@@ -151,8 +164,27 @@ export async function POST(req: Request) {
   const name = match.client_name || 'there'
   const concept = str(match.ai_summary) || 'your piece'
   const inquiry = inquiryUrl(matchId)
+  // A lead that came through Instagram or Messenger hears back where they
+  // wrote, as well as by email or text when we have those.
+  const dmThread = typeof match.external_thread_id === 'string' && match.external_thread_id.startsWith('chatwoot:') ? match.external_thread_id : null
   try {
-    if (action === 'accept') {
+    if (dmThread) await chatwootReply(dmThread, `${threadBody}\n\nYour inquiry page: ${inquiry}`)
+    if (action === 'review_request') {
+      await notifyClient({
+        email: match.client_email,
+        phone: match.client_phone,
+        subject: `Thank you from ${firstName}`,
+        text: `Hey ${name},
+
+Thank you for sitting with me for ${concept}.${message ? `\n\n${message}` : ''}
+
+If you have a minute, a Google review helps more than you'd think:
+${reviewUrl}
+
+— ${ARTIST_CONFIG.handle}`,
+        sms: `${ARTIST_CONFIG.handle}: thank you for sitting with ${firstName}! A quick Google review helps a lot: ${reviewUrl}`,
+      })
+    } else if (action === 'accept') {
       const { url: deposit, external } = depositLinkFor(matchId)
       const quote = money(priceCents)
       await notifyClient({

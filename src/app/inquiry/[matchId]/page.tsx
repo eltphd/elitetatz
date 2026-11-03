@@ -10,6 +10,7 @@ import { InquiryConsent } from '@/components/ConsentChoices'
 import { currentChoices } from '@/lib/consent'
 import { DateRequest } from '@/components/DateRequest'
 import { briefFollowUps } from '@/lib/brief'
+import { ReferenceUpload } from '@/components/ReferenceUpload'
 
 // The client's page. No account: the signed token in the URL is the proof,
 // and it is checked before a single row is read. Wrong or missing token →
@@ -65,6 +66,11 @@ export default async function InquiryPage({
     .select('scope, granted, created_at')
     .eq('match_id', matchId)
   const consent = currentChoices(consentRows ?? [])
+
+  const { count: fileCount } = await admin
+    .from('lead_attachments')
+    .select('id', { count: 'exact', head: true })
+    .eq('match_id', matchId)
 
   let brief: Record<string, unknown> = {}
   try { brief = JSON.parse(match.client_brief ?? '{}') } catch {}
@@ -140,6 +146,12 @@ export default async function InquiryPage({
           artistName={firstName}
         />
       </section>
+
+      {!['rejected', 'cancelled', 'completed'].includes(match.status) && (
+        <section className="mt-6">
+          <ReferenceUpload matchId={matchId} token={token!} existing={fileCount ?? 0} artistName={firstName} />
+        </section>
+      )}
 
       <section className="mt-6">
         <p className="text-xs text-[#6b6b6b] uppercase tracking-widest font-medium mb-3">Updates</p>

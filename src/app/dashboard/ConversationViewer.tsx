@@ -8,6 +8,8 @@ import { ThreadList, ReplyBox, type ThreadMessage } from '@/components/InquiryTh
 // Two layers on every lead: the concierge transcript (collapsed; loaded on
 // demand from /api/dashboard/conversation) and the live thread with the
 // client (always visible, with a reply box that posts to /api/dashboard/message).
+// Every channel's messages are in the one thread, each marked with where it
+// came from; a reply goes back by whatever the client gave us.
 
 interface Props {
   matchId: string
@@ -15,11 +17,17 @@ interface Props {
   thread: ThreadMessage[]
   clientName: string
   canReply: boolean
+  /** In words: "Instagram DM and email". Shown under the reply box. */
+  replyVia: string
+  /** A draft dropped in from the assistant; re-applied when draftKey changes. */
+  draft?: string
+  draftKey?: number
+  demo?: boolean
 }
 
 interface Msg { role: string; content: string; timestamp?: string }
 
-export function ConversationViewer({ matchId, conversationId, thread, clientName, canReply }: Props) {
+export function ConversationViewer({ matchId, conversationId, thread, clientName, canReply, replyVia, draft, draftKey = 0, demo = false }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Msg[]>([])
@@ -34,9 +42,17 @@ export function ConversationViewer({ matchId, conversationId, thread, clientName
     setOpen(true)
     setLoading(true)
     try {
-      const res = await fetch(`/api/dashboard/conversation?matchId=${matchId}`)
-      const data = await res.json()
-      setMessages(data.messages ?? [])
+      if (demo) {
+        setMessages([
+          { role: 'user', content: 'Hi! I want a watercolor peony on my forearm.' },
+          { role: 'assistant', content: 'Love that. Roughly how big are you picturing it, and where on the forearm?' },
+          { role: 'user', content: 'Maybe 4 inches, outer forearm. I have a reference but I like it loose, more of a color splash.' },
+        ])
+      } else {
+        const res = await fetch(`/api/dashboard/conversation?matchId=${matchId}`)
+        const data = await res.json()
+        setMessages(data.messages ?? [])
+      }
       setLoaded(true)
     } catch { /* non-fatal */ } finally {
       setLoading(false)
@@ -44,6 +60,10 @@ export function ConversationViewer({ matchId, conversationId, thread, clientName
   }
 
   async function reply(body: string) {
+    if (demo) {
+      setLocal((prev) => [...prev, { id: `demo-${Date.now()}`, sender: 'artist', body, created_at: new Date().toISOString() }])
+      return
+    }
     const res = await fetch('/api/dashboard/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -101,7 +121,13 @@ export function ConversationViewer({ matchId, conversationId, thread, clientName
         )}
         {canReply && (
           <div className="mt-3">
-            <ReplyBox onSend={reply} placeholder={`Message ${clientName}…`} />
+            <ReplyBox
+              onSend={reply}
+              placeholder={`Message ${clientName}…`}
+              initialText={draft}
+              initialKey={draftKey}
+              hint={`Goes to ${clientName} by ${replyVia}. They also get a link to their inquiry page.`}
+            />
           </div>
         )}
       </div>

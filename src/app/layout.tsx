@@ -9,8 +9,9 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'EliteTatz — Find Your Artist',
   description: 'AI-powered tattoo matching. Tell us your vision, we find your artist.',
-  manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'EliteTatz' },
+  manifest: '/manifest.webmanifest',
+  icons: { apple: '/icon-180.png', icon: '/icon-192.png' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'RawSunArt Inbox' },
 }
 
 export const viewport: Viewport = {

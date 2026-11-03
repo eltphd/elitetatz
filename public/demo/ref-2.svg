@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <radialGradient id="g1" cx="40%" cy="40%" r="60%"><stop offset="0" stop-color="#2d4b8e" stop-opacity=".95"/><stop offset="1" stop-color="#2d4b8e" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g2" cx="65%" cy="55%" r="55%"><stop offset="0" stop-color="#8ec9ff" stop-opacity=".9"/><stop offset="1" stop-color="#8ec9ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="g3" cx="50%" cy="75%" r="50%"><stop offset="0" stop-color="#f4e04d" stop-opacity=".85"/><stop offset="1" stop-color="#f4e04d" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="600" height="600" fill="#f7f3ea"/>
+  <circle cx="240" cy="240" r="230" fill="url(#g1)"/>
+  <circle cx="390" cy="330" r="220" fill="url(#g2)"/>
+  <circle cx="300" cy="450" r="200" fill="url(#g3)"/>
+  <path d="M300 180 C 360 200, 400 260, 380 330 C 360 400, 280 420, 240 370 C 200 320, 230 230, 300 180 Z" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M300 180 C 290 260, 300 330, 320 400" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+  <text x="300" y="560" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#333">demo reference · moth, fine line</text>
+</svg>
