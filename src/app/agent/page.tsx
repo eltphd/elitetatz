@@ -1,9 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AgentChat } from '@/components/AgentChat'
 import { ArrowLeft } from 'lucide-react'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 
 // Every chat is Lacey's. Old links still carry ?mode=rawsunart; it is ignored.
+// A tool, not a page to be found: the entry point Google should show is rawsunart.com.
+export const metadata: Metadata = {
+  title: `Book with ${ARTIST_CONFIG.name} · ${ARTIST_CONFIG.handle} concierge`,
+  description: `Tell ${ARTIST_CONFIG.name.split(' ')[0]}'s booking assistant what you want; she quotes it herself.`,
+  robots: { index: false, follow: true },
+}
+
 export default function AgentPage() {
   return (
     <div className="flex flex-col h-dvh">

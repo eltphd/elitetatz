@@ -1,97 +1,20 @@
 import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import {
-  Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, User, Mail, Phone, AlertTriangle, Wallet, Link2, Receipt, HelpCircle } from 'lucide-react'
-import { LeadActions } from './LeadActions'
-import { ConversationViewer } from './ConversationViewer'
+import { Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, Wallet, Link2, Receipt, Plus } from 'lucide-react'
 import type { ThreadMessage } from '@/components/InquiryThread'
-import { inquiryUrl } from '@/lib/tokens'
-import { depositLinkFor } from '@/lib/deposit'
-import { briefFollowUps, referenceLine, suggestedQuestion } from '@/lib/brief'
+import { signAttachments, type AttachmentRow } from '@/lib/attachments'
+import { LeadCard, groupOf, type Group, type Lead } from './LeadCard'
+import type { AttachmentView } from './AttachmentGrid'
+import type { NoteView } from './NotesPanel'
 
-// Lacey's inbox. Four groups, three buttons, one thread per lead.
+// Lacey's inbox. Every channel (website, concierge, email, Instagram,
+// Messenger, text, by hand) lands here as one card with the thread, the
+// reference files, her notes and the assistant. Four groups, three buttons.
 // Everything is read through her session (RLS), nothing depends on the
 // notify_artist_on_match trigger: the app writes its own notifications.
 
 export const dynamic = 'force-dynamic'
-
-interface Lead {
-  id: string
-  status: string
-  client_brief: string | null
-  ai_summary: string | null
-  offered_price_cents: number | null
-  placement: string | null
-  created_at: string
-  artist_response: string | null
-  conversation_id: string | null
-  client_name: string | null
-  client_email: string | null
-  client_phone: string | null
-  proposed_dates: string | null
-  appointment_at: string | null
-  design_fee_cents: number | null
-  date_request: string | null
-  stripe_payment_intent_id: string | null
-  clients: { id: string; name: string | null; email: string | null } | null
-}
-
-type Group = 'needs_you' | 'waiting' | 'booked' | 'closed'
-
-const CLOSED = ['rejected', 'completed', 'cancelled']
-const BOOKED = ['paid', 'booked']
-
-const STATUS_PILL: Record<string, { label: string; cls: string }> = {
-  pending: { label: 'New', cls: 'bg-[#c9a84c]/10 text-[#c9a84c] border-[#c9a84c]/30' },
-  info_requested: { label: 'Asked', cls: 'bg-[#c9a84c]/10 text-[#e0c878] border-[#c9a84c]/20' },
-  accepted: { label: 'Quoted · unpaid', cls: 'bg-green-900/20 text-green-400 border-green-800/30' },
-  paid: { label: 'Deposit paid', cls: 'bg-green-900/30 text-green-300 border-green-700/40' },
-  booked: { label: 'Booked', cls: 'bg-green-900/30 text-green-300 border-green-700/40' },
-  completed: { label: 'Done', cls: 'bg-[#1e1e1e] text-[#9b9b9b] border-[#2a2a2a]' },
-  rejected: { label: 'Passed', cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' },
-  cancelled: { label: 'Cancelled', cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' },
-}
-
-const str = (v: unknown) => (v == null ? '' : String(v)).trim()
-const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`
-
-function timeAgo(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  if (s < 86400 * 14) return `${Math.floor(s / 86400)}d ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
-}
-
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleString('en-US', {
-    weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York',
-  })
-
-// A client message newer than her last one means the ball is in her court,
-// whatever the status says.
-function clientOwesNothing(thread: ThreadMessage[]): boolean {
-  let lastArtist = 0
-  let lastClient = 0
-  for (const m of thread) {
-    const t = new Date(m.created_at).getTime()
-    if (m.sender === 'artist') lastArtist = Math.max(lastArtist, t)
-    if (m.sender === 'client') lastClient = Math.max(lastClient, t)
-  }
-  return lastClient <= lastArtist
-}
-
-function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
-  if (CLOSED.includes(lead.status)) return 'closed'
-  if (lead.status === 'pending') return 'needs_you'
-  if (!clientOwesNothing(thread)) return 'needs_you'
-  // A paid client who has named a date and is waiting on her final say.
-  if (lead.status === 'paid' && lead.date_request && !lead.appointment_at) return 'needs_you'
-  if (BOOKED.includes(lead.status)) return 'booked'
-  return 'waiting'
-}
 
 export default async function DashboardPage() {
   const ctx = await artistContext()
@@ -102,10 +25,10 @@ export default async function DashboardPage() {
   const { data: rows } = await db
     .from('matches')
     .select(`
-      id, status, client_brief, ai_summary, offered_price_cents,
+      id, status, channel, client_brief, ai_summary, offered_price_cents,
       placement, created_at, artist_response, conversation_id,
-      client_name, client_email, client_phone, proposed_dates, appointment_at,
-      design_fee_cents, date_request, stripe_payment_intent_id,
+      client_name, client_email, client_phone, external_thread_id, proposed_dates, appointment_at,
+      design_fee_cents, date_request, stripe_payment_intent_id, last_client_message_at,
       clients (id, name, email)
     `)
     .eq('artist_id', artist.id)
@@ -113,18 +36,33 @@ export default async function DashboardPage() {
     .limit(100)
 
   const leads = (rows ?? []) as unknown as Lead[]
+  const ids = leads.map((l) => l.id)
 
   const threads = new Map<string, ThreadMessage[]>()
-  if (leads.length) {
-    const { data: msgs } = await db
-      .from('match_messages')
-      .select('id, match_id, sender, body, created_at')
-      .in('match_id', leads.map((l) => l.id))
-      .order('created_at', { ascending: true })
+  const files = new Map<string, AttachmentView[]>()
+  const notes = new Map<string, NoteView[]>()
+  if (ids.length) {
+    const [{ data: msgs }, { data: atts }, { data: nts }] = await Promise.all([
+      db.from('match_messages').select('id, match_id, sender, body, channel, created_at').in('match_id', ids).order('created_at', { ascending: true }),
+      db.from('lead_attachments').select('id, match_id, message_id, storage_path, filename, mime, size_bytes, source, created_at').in('match_id', ids).order('created_at', { ascending: true }),
+      db.from('lead_notes').select('id, match_id, author, kind, body, created_at').in('match_id', ids).order('created_at', { ascending: true }),
+    ])
     for (const m of (msgs ?? []) as (ThreadMessage & { match_id: string })[]) {
       const list = threads.get(m.match_id) ?? []
-      list.push({ id: m.id, sender: m.sender, body: m.body, created_at: m.created_at })
+      list.push({ id: m.id, sender: m.sender, body: m.body, created_at: m.created_at, channel: m.channel ?? null })
       threads.set(m.match_id, list)
+    }
+    const attRows = (atts ?? []) as AttachmentRow[]
+    const urls = await signAttachments(db, attRows)
+    for (const a of attRows) {
+      const list = files.get(a.match_id) ?? []
+      list.push({ id: a.id, filename: a.filename, mime: a.mime, size_bytes: a.size_bytes, source: a.source, url: urls[a.id] ?? null, created_at: a.created_at })
+      files.set(a.match_id, list)
+    }
+    for (const n of (nts ?? []) as (NoteView & { match_id: string })[]) {
+      const list = notes.get(n.match_id) ?? []
+      list.push({ id: n.id, author: n.author, kind: n.kind, body: n.body, created_at: n.created_at })
+      notes.set(n.match_id, list)
     }
   }
 
@@ -137,6 +75,7 @@ export default async function DashboardPage() {
     { key: 'booked', title: 'Booked', hint: 'Deposit in' },
     { key: 'closed', title: 'Closed' },
   ]
+  const reviewUrlConfigured = Boolean(process.env.GOOGLE_REVIEW_URL?.trim())
 
   return (
     <div className="min-h-dvh bg-[#0a0a0a] text-white">
@@ -152,19 +91,22 @@ export default async function DashboardPage() {
             </div>
           </div>
           <nav className="flex items-center gap-4">
-            <Link href="/dashboard/payouts" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+            <Link href="/dashboard/new" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+              <Plus className="w-3.5 h-3.5" />
+              Add a lead
+            </Link>
+            <Link href="/dashboard/payouts" className="hidden sm:flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Wallet className="w-3.5 h-3.5" />
               Payouts
             </Link>
-            <Link href="/dashboard/billing" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+            <Link href="/dashboard/billing" className="hidden sm:flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Receipt className="w-3.5 h-3.5" />
               Billing
             </Link>
             <Link href="/dashboard/connections" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Link2 className="w-3.5 h-3.5" />
-              Connections
+              <span className="hidden sm:inline">Connections</span>
             </Link>
-            <Link href="/rawsunart" className="text-xs text-[#9b9b9b] font-medium hidden sm:inline">Portfolio →</Link>
           </nav>
         </div>
       </header>
@@ -188,8 +130,11 @@ export default async function DashboardPage() {
           <div className="text-center py-20">
             <MessageCircle className="w-10 h-10 text-[#6b6b6b] mx-auto mb-4 opacity-40" />
             <p className="text-sm text-[#6b6b6b] mb-2">No leads yet</p>
-            <p className="text-xs text-[#6b6b6b] mb-5">Share your portfolio link to start getting inquiries.</p>
-            <Link href="/rawsunart" className="text-[#c9a84c] text-sm font-medium">View your portfolio →</Link>
+            <p className="text-xs text-[#6b6b6b] mb-5">Share your portfolio link to start getting inquiries, or add one by hand.</p>
+            <div className="flex items-center justify-center gap-4">
+              <Link href="/rawsunart" className="text-[#c9a84c] text-sm font-medium">View your portfolio →</Link>
+              <Link href="/dashboard/new" className="text-[#c9a84c] text-sm font-medium">Add a lead →</Link>
+            </div>
           </div>
         )}
 
@@ -207,7 +152,15 @@ export default async function DashboardPage() {
               </div>
               <div className="space-y-3">
                 {list.map((lead) => (
-                  <LeadCard key={lead.id} lead={lead} group={key} thread={threads.get(lead.id) ?? []} />
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    group={key}
+                    thread={threads.get(lead.id) ?? []}
+                    attachments={files.get(lead.id) ?? []}
+                    notes={notes.get(lead.id) ?? []}
+                    reviewUrlConfigured={reviewUrlConfigured}
+                  />
                 ))}
               </div>
             </section>
@@ -216,167 +169,6 @@ export default async function DashboardPage() {
       </main>
     </div>
   )
-}
-
-function LeadCard({ lead, group, thread }: { lead: Lead; group: Group; thread: ThreadMessage[] }) {
-  let brief: Record<string, unknown> = {}
-  try { brief = JSON.parse(lead.client_brief ?? '{}') } catch {}
-
-  const name = lead.client_name || str(brief.client_name) || lead.clients?.name || 'Anonymous'
-  const email = lead.client_email || str(brief.client_email) || lead.clients?.email || ''
-  const phone = lead.client_phone || str(brief.client_phone) || ''
-  const concept = str(brief.concept) || lead.ai_summary || 'New inquiry'
-  const styles = Array.isArray(brief.styles) ? brief.styles.map(String).join(', ') : str(brief.styles)
-  const placement = lead.placement || str(brief.placement)
-  const size = str(brief.size)
-  const budgetMax = Number(brief.budget_max_cents) || 0
-  const budgetMin = Number(brief.budget_min_cents) || 0
-  const budget = budgetMax ? (budgetMin && budgetMin !== budgetMax ? `${money(budgetMin)}–${money(budgetMax)}` : money(budgetMax)) : null
-  const readiness = Number(brief.readiness_score)
-  // What is still open before she quotes (the client's unanswered points and
-  // an unconfirmed scale read) is shown apart from tattoo-ability notes.
-  const followUps = briefFollowUps(brief)
-  const toSettle = followUps.filter((f) => f.kind !== 'feasibility').map((f) => f.text)
-  const flags = followUps.filter((f) => f.kind === 'feasibility').map((f) => f.text)
-  const refs = referenceLine(brief)
-  const scale = str(brief.scale_check)
-  const pill = STATUS_PILL[lead.status] ?? { label: lead.status, cls: 'bg-[#1e1e1e] text-[#6b6b6b] border-[#2a2a2a]' }
-  const depositPaid = ['paid', 'booked', 'completed'].includes(lead.status) || Boolean(lead.stripe_payment_intent_id)
-  const actionable =
-    lead.status === 'pending' || lead.status === 'info_requested' || (lead.status === 'accepted' && !depositPaid) ||
-    lead.status === 'paid' || lead.status === 'booked'
-
-  return (
-    <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-[#1e1e1e] border border-[#2a2a2a] flex items-center justify-center shrink-0">
-            <User className="w-4 h-4 text-[#6b6b6b]" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold leading-tight truncate">{name}</p>
-            <p className="text-[10px] text-[#6b6b6b]">{timeAgo(lead.created_at)} · {fmtDate(lead.created_at)}</p>
-          </div>
-        </div>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${pill.cls}`}>
-          {pill.label}
-        </span>
-      </div>
-
-      {(email || phone) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
-          {email && (
-            <a href={`mailto:${email}`} className="flex items-center gap-1 text-[#9b9b9b] hover:text-[#c9a84c]">
-              <Mail className="w-3 h-3" />{email}
-            </a>
-          )}
-          {phone && (
-            <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1 text-[#9b9b9b] hover:text-[#c9a84c]">
-              <Phone className="w-3 h-3" />{phone}
-            </a>
-          )}
-        </div>
-      )}
-
-      <p className="text-sm font-medium mb-2 leading-snug">{concept}</p>
-
-      <div className="flex flex-wrap gap-2 mb-2">
-        {styles && <Tag>{styles}</Tag>}
-        {placement && <Tag>{placement}</Tag>}
-        {size && <Tag>{size}</Tag>}
-        {budget && <Tag>{budget} budget</Tag>}
-        {brief.has_reference ? <Tag>Has reference</Tag> : null}
-        {brief.creative_freedom ? <Tag>Creative freedom</Tag> : null}
-        {brief.deposit_ready ? <Tag>Deposit ready</Tag> : null}
-        {Number.isFinite(readiness) && readiness > 0 && (
-          <Tag tone={readiness >= 70 ? 'good' : 'warn'}>Readiness {readiness}</Tag>
-        )}
-      </div>
-
-      {(refs || scale) && (
-        <div className="mb-3 text-[11px] text-[#9b9b9b] space-y-0.5">
-          {refs && <p><span className="text-[#6b6b6b]">Reference is for</span> {refs}</p>}
-          {scale && (
-            <p>
-              <span className="text-[#6b6b6b]">Scale read</span> {scale}{' '}
-              <span className={brief.scale_confirmed === true ? 'text-green-400' : 'text-amber-300'}>
-                · {brief.scale_confirmed === true ? 'client confirmed' : 'not confirmed'}
-              </span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {toSettle.length > 0 && (
-        <div className="mb-3 flex items-start gap-1.5 text-[11px] text-[#e0c878] bg-[#c9a84c]/10 border border-[#c9a84c]/25 rounded-lg px-2.5 py-1.5">
-          <HelpCircle className="w-3 h-3 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold mb-0.5">Still to settle before you quote</p>
-            <ul className="space-y-0.5">{toSettle.map((t) => <li key={t}>{t}</li>)}</ul>
-          </div>
-        </div>
-      )}
-
-      {flags.length > 0 && (
-        <div className="mb-3 flex items-start gap-1.5 text-[11px] text-amber-300/90 bg-amber-900/10 border border-amber-800/30 rounded-lg px-2.5 py-1.5">
-          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-          <span>{flags.join(' · ')}</span>
-        </div>
-      )}
-
-      {(lead.status === 'paid' || lead.status === 'booked') && (
-        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1 mb-3">
-          {lead.offered_price_cents != null && <p><span className="text-[#6b6b6b]">Quote</span> <span className="font-semibold">{money(lead.offered_price_cents)}</span>{lead.design_fee_cents ? <span className="text-[#9b9b9b]"> · drafts {money(lead.design_fee_cents)}</span> : null}</p>}
-          {lead.proposed_dates && <p><span className="text-[#6b6b6b]">You offered</span> {lead.proposed_dates}</p>}
-          {lead.appointment_at && <p><span className="text-[#6b6b6b]">Appointment</span> <span className="text-green-400">{fmtDate(lead.appointment_at)}</span></p>}
-        </div>
-      )}
-      {actionable && (
-        <LeadActions
-          matchId={lead.id}
-          status={lead.status as 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'}
-          dateRequest={lead.date_request}
-          appointmentAt={lead.appointment_at}
-          suggestedQuestion={suggestedQuestion(brief)}
-        />
-      )}
-
-      {!actionable && !CLOSED.includes(lead.status) && (
-        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-3 text-xs space-y-1">
-          {lead.offered_price_cents != null && (
-            <p><span className="text-[#6b6b6b]">Quote</span> <span className="font-semibold">{money(lead.offered_price_cents)}</span></p>
-          )}
-          {lead.proposed_dates && <p><span className="text-[#6b6b6b]">Dates</span> {lead.proposed_dates}</p>}
-          {lead.appointment_at && <p><span className="text-[#6b6b6b]">Appointment</span> <span className="text-green-400">{fmtDate(lead.appointment_at)}</span></p>}
-          {!depositPaid && (
-            <div className="pt-1">
-              <p className="text-[10px] text-[#6b6b6b] mb-1">Deposit link — resend if the client didn&apos;t get it</p>
-              <code className="block text-[10px] text-[#c9a84c] break-all">{depositLinkFor(lead.id).url ?? 'no deposit link configured'}</code>
-            </div>
-          )}
-          <p className="text-[10px] text-[#6b6b6b] pt-1">
-            Client page: <code className="text-[#9b9b9b] break-all">{inquiryUrl(lead.id)}</code>
-          </p>
-        </div>
-      )}
-
-      <ConversationViewer
-        matchId={lead.id}
-        conversationId={lead.conversation_id}
-        thread={thread}
-        clientName={name === 'Anonymous' ? 'Client' : name.split(' ')[0]}
-        canReply={!['rejected', 'cancelled'].includes(lead.status)}
-      />
-    </div>
-  )
-}
-
-function Tag({ children, tone }: { children: React.ReactNode; tone?: 'good' | 'warn' }) {
-  const cls =
-    tone === 'good' ? 'border-green-800/40 text-green-400 bg-green-900/10'
-    : tone === 'warn' ? 'border-amber-800/40 text-amber-300 bg-amber-900/10'
-    : 'bg-[#1e1e1e] border-[#2a2a2a] text-[#9b9b9b]'
-  return <span className={`text-[10px] px-2 py-0.5 border rounded-full capitalize ${cls}`}>{children}</span>
 }
 
 function NotAnArtist({ reason }: { reason: string }) {

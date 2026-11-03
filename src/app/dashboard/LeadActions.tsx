@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign, CalendarCheck } from 'lucide-react'
+import { CheckCircle, HelpCircle, XCircle, Loader2, BadgeDollarSign, CalendarCheck, Star, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSpeechInput } from '@/components/useSpeechInput'
 import { MicButton } from '@/components/MicButton'
 
@@ -10,12 +10,28 @@ import { MicButton } from '@/components/MicButton'
 // question box; Pass opens an optional note. One tap each after the fields.
 // Optimistic: the card flips to its result the moment she taps, then the
 // server page refreshes so the lead lands in the right group.
+//
+// The quote box opens with a starting number already typed, worked out from
+// the brief against her published bands, with the reasons under it. She edits
+// or sends. Nothing is sent to the client until she taps the send button.
 
-type Panel = 'idle' | 'accept' | 'more_info' | 'decline' | 'confirm_date'
-type Done = 'accepted' | 'info_requested' | 'rejected' | 'paid' | 'booked'
+type Panel = 'idle' | 'accept' | 'more_info' | 'decline' | 'confirm_date' | 'review'
+type Done = 'accepted' | 'info_requested' | 'rejected' | 'paid' | 'booked' | 'review_sent'
+type Action = 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date' | 'review_request'
+
+export interface QuoteHint {
+  cents: number
+  lowCents: number
+  highCents: number
+  hourly: boolean
+  reasons: string[]
+  belowBudget: boolean
+  sizeUnknown: boolean
+}
 
 const INPUT =
   'w-full bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#6b6b6b] outline-none focus:border-[#c9a84c]/40 transition-colors'
+const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 
 export function LeadActions({
   matchId,
@@ -23,26 +39,41 @@ export function LeadActions({
   dateRequest,
   appointmentAt,
   suggestedQuestion,
+  quote,
+  draftQuestion,
+  draftKey = 0,
+  reviewUrlConfigured = true,
+  sessionDone = false,
+  demo = false,
 }: {
   matchId: string
-  status: 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked'
+  status: 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked' | 'completed'
   dateRequest?: string | null
   appointmentAt?: string | null
   // Drafted from what the client could not settle in the chat; pre-fills
   // "More info" so the follow-up is one tap, not a re-read of the brief.
   suggestedQuestion?: string
+  quote?: QuoteHint
+  // A draft from the assistant: opens "More info" with it in the box.
+  draftQuestion?: string
+  draftKey?: number
+  reviewUrlConfigured?: boolean
+  /** The booked appointment is in the past, so a review can be asked for. */
+  sessionDone?: boolean
+  demo?: boolean
 }) {
   const router = useRouter()
   const [panel, setPanel] = useState<Panel>('idle')
   const [done, setDone] = useState<Done | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [quote, setQuote] = useState('')
+  const [quoteStr, setQuoteStr] = useState('')
   const [dates, setDates] = useState('')
   const [note, setNote] = useState('')
   const [question, setQuestion] = useState('')
   const [designFee, setDesignFee] = useState('')
   const [when, setWhen] = useState('')
   const [prefilled, setPrefilled] = useState(false)
+  const [showReasons, setShowReasons] = useState(false)
   // She can say the question instead of typing it.
   const questionBase = useRef('')
   const speech = useSpeechInput((text) => setQuestion([questionBase.current, text].filter(Boolean).join(' ')))
@@ -54,20 +85,31 @@ export function LeadActions({
     if (!question && suggestedQuestion) { setQuestion(suggestedQuestion); setPrefilled(true) }
     setPanel('more_info')
   }
+  function openAccept() {
+    if (!quoteStr && quote && !quote.sizeUnknown) setQuoteStr(String(quote.cents / 100))
+    setPanel('accept')
+  }
+  // An assistant draft arriving (the key changes) opens "More info" with it.
+  const [appliedDraft, setAppliedDraft] = useState(0)
+  if (draftKey !== appliedDraft) {
+    setAppliedDraft(draftKey)
+    if (draftKey > 0 && draftQuestion) { setQuestion(draftQuestion); setPrefilled(false); setPanel('more_info') }
+  }
 
-  async function send(action: 'accept' | 'more_info' | 'decline' | 'deposit_received' | 'confirm_date') {
+  async function send(action: Action) {
     const optimistic: Done =
-      action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : action === 'deposit_received' ? 'paid' : action === 'confirm_date' ? 'booked' : 'rejected'
+      action === 'accept' ? 'accepted' : action === 'more_info' ? 'info_requested' : action === 'deposit_received' ? 'paid' : action === 'confirm_date' ? 'booked' : action === 'review_request' ? 'review_sent' : 'rejected'
     setSubmitting(true)
     setDone(optimistic)
     try {
+      if (demo) { await new Promise((r) => setTimeout(r, 500)); return }
       const res = await fetch('/api/dashboard/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matchId,
           action,
-          price_cents: action === 'accept' ? Math.round(Number(quote) * 100) : undefined,
+          price_cents: action === 'accept' ? Math.round(Number(quoteStr) * 100) : undefined,
           proposed_dates: action === 'accept' ? dates || undefined : undefined,
           design_fee_cents: action === 'accept' && designFee !== '' ? Math.round(Number(designFee) * 100) : undefined,
           appointment_at: action === 'confirm_date' ? new Date(when).toISOString() : undefined,
@@ -87,6 +129,13 @@ export function LeadActions({
     }
   }
 
+  if (done === 'review_sent') {
+    return (
+      <Result icon={<Star className="w-4 h-4 text-[#c9a84c]" />} cls="text-[#c9a84c]">
+        Review link sent — thank you note went by email and text
+      </Result>
+    )
+  }
   if (done === 'booked') {
     return (
       <Result icon={<CalendarCheck className="w-4 h-4 text-green-400" />} cls="text-green-400">
@@ -124,11 +173,29 @@ export function LeadActions({
   }
 
   if (panel === 'accept') {
-    const valid = Number(quote) > 0
+    const valid = Number(quoteStr) > 0
     return (
       <div className="space-y-3 pt-1">
         <Field label="Your quote ($)">
-          <input type="number" inputMode="decimal" min={1} value={quote} onChange={(e) => setQuote(e.target.value)} placeholder="e.g. 450" className={INPUT} autoFocus />
+          <input type="number" inputMode="decimal" min={1} value={quoteStr} onChange={(e) => setQuoteStr(e.target.value)} placeholder="e.g. 450" className={INPUT} autoFocus />
+          {quote && (
+            <div className="mt-1.5 text-[11px] text-[#9b9b9b]">
+              <button type="button" onClick={() => setShowReasons(!showReasons)} className="flex items-center gap-1 text-[#e0c878]">
+                {quote.sizeUnknown
+                  ? `Size isn't in the brief, so this starts at your ${money(quote.cents)} minimum`
+                  : quote.hourly
+                    ? `Starting point: quote hourly (band ${money(quote.lowCents)}–${money(quote.highCents)}+)`
+                    : `Starting point ${money(quote.cents)} · band ${money(quote.lowCents)}–${money(quote.highCents)}`}
+                {showReasons ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+              {showReasons && (
+                <ul className="mt-1 space-y-0.5 pl-3 list-disc">
+                  {quote.reasons.map((r) => <li key={r}>{r}</li>)}
+                </ul>
+              )}
+              {quote.belowBudget && <p className="mt-1 text-amber-300">Their budget is under this band.</p>}
+            </div>
+          )}
         </Field>
         <Field label="Proposed dates">
           <input type="text" value={dates} onChange={(e) => setDates(e.target.value)} placeholder="Wed Oct 8 at 1pm or Sat Oct 11 at noon" className={INPUT} />
@@ -147,7 +214,7 @@ export function LeadActions({
             className="flex-[2] bg-[#c9a84c] text-black font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-            Send quote{valid ? ` · $${Number(quote).toLocaleString('en-US')}` : ''}
+            Send quote{valid ? ` · $${Number(quoteStr).toLocaleString('en-US')}` : ''}
           </button>
         </div>
       </div>
@@ -159,7 +226,7 @@ export function LeadActions({
       <div className="space-y-3 pt-1">
         <Field label="What do you need to know?">
           <div className="relative">
-            <textarea value={question} onChange={(e) => { setQuestion(e.target.value); setPrefilled(false) }} rows={prefilled ? 5 : 3} placeholder="Can you send a reference? Color or black and grey?" className={`${INPUT} resize-none pr-10`} autoFocus />
+            <textarea value={question} onChange={(e) => { setQuestion(e.target.value); setPrefilled(false) }} rows={prefilled || question.length > 160 ? 5 : 3} placeholder="Can you send a reference? Color or black and grey?" className={`${INPUT} resize-none pr-10`} autoFocus />
             <MicButton supported={speech.supported} listening={speech.listening} onToggle={toggleMic} className="absolute right-1.5 top-1.5" />
           </div>
           {prefilled && (
@@ -202,6 +269,28 @@ export function LeadActions({
     )
   }
 
+  if (panel === 'review') {
+    return (
+      <div className="space-y-3 pt-1">
+        <Field label="A line of your own (optional)">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="It was great meeting you. Heal well!" className={`${INPUT} resize-none`} autoFocus />
+        </Field>
+        <p className="text-[10px] text-[#6b6b6b]">Sends a thank-you with your Google review link, by email and text. Only when you tap.</p>
+        <div className="flex gap-2">
+          <Cancel onClick={() => setPanel('idle')} />
+          <button onClick={() => send('review_request')} disabled={submitting} className="flex-[2] bg-[#c9a84c] text-black font-bold py-2.5 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-1.5">
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Star className="w-3.5 h-3.5" />}
+            Send the review link
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'completed') {
+    return reviewUrlConfigured ? <ReviewButton onClick={() => setPanel('review')} /> : null
+  }
+
   if (status === 'paid' || status === 'booked') {
     // Final say on the date. The client's request (if any) is shown; she picks
     // the exact time and the client is told by email and text.
@@ -212,13 +301,16 @@ export function LeadActions({
           {dateRequest && !appointmentAt && (
             <p className="text-xs text-[#e0c878] bg-[#c9a84c]/10 border border-[#c9a84c]/25 rounded-lg px-2.5 py-1.5">Client asked for: <span className="text-white">{dateRequest}</span></p>
           )}
-          <button
-            onClick={() => setPanel('confirm_date')}
-            className="flex items-center justify-center gap-1.5 w-full bg-[#c9a84c] text-black font-bold py-3 rounded-xl text-sm"
-          >
-            <CalendarCheck className="w-3.5 h-3.5" />
-            {appointmentAt ? 'Change the date' : 'Confirm the date'}
-          </button>
+          <div className={`grid gap-2 ${sessionDone && reviewUrlConfigured ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <button
+              onClick={() => setPanel('confirm_date')}
+              className={`flex items-center justify-center gap-1.5 w-full font-bold py-3 rounded-xl text-sm ${sessionDone ? 'bg-[#1e1e1e] border border-[#2a2a2a] text-[#9b9b9b]' : 'bg-[#c9a84c] text-black'}`}
+            >
+              <CalendarCheck className="w-3.5 h-3.5" />
+              {appointmentAt ? 'Change the date' : 'Confirm the date'}
+            </button>
+            {sessionDone && reviewUrlConfigured && <ReviewButton onClick={() => setPanel('review')} />}
+          </div>
         </div>
       )
     }
@@ -252,7 +344,7 @@ export function LeadActions({
     return (
       <button
         disabled={submitting}
-        onClick={() => { if (confirm('Mark the deposit as received? The client is told their spot is held.')) send('deposit_received') }}
+        onClick={() => { if (demo || confirm('Mark the deposit as received? The client is told their spot is held.')) send('deposit_received') }}
         className="flex items-center justify-center gap-1.5 w-full bg-[#1e1e1e] border border-green-800/40 text-green-400 font-semibold py-3 rounded-xl text-sm"
       >
         {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BadgeDollarSign className="w-3.5 h-3.5" />}
@@ -262,29 +354,50 @@ export function LeadActions({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <button
-        onClick={() => setPanel('accept')}
-        className="flex items-center justify-center gap-1.5 bg-[#c9a84c] text-black font-bold py-3 rounded-xl text-sm"
-      >
-        <CheckCircle className="w-3.5 h-3.5" />
-        Accept
-      </button>
-      <button
-        onClick={openMoreInfo}
-        className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#c9a84c]/30 text-[#e0c878] font-semibold py-3 rounded-xl text-sm"
-      >
-        <HelpCircle className="w-3.5 h-3.5" />
-        <span className="truncate">{status === 'info_requested' ? 'Ask again' : 'More info'}</span>
-      </button>
-      <button
-        onClick={() => setPanel('decline')}
-        className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#2a2a2a] text-[#9b9b9b] font-medium py-3 rounded-xl text-sm hover:border-red-800/40 hover:text-red-400 transition-colors"
-      >
-        <XCircle className="w-3.5 h-3.5" />
-        Pass
-      </button>
+    <div className="space-y-2">
+      {quote && (
+        <p className="text-[11px] text-[#9b9b9b] flex items-center gap-1.5">
+          <BadgeDollarSign className="w-3 h-3 text-[#c9a84c]" />
+          {quote.sizeUnknown
+            ? <>No size yet: ask before you quote, or start at your {money(quote.cents)} minimum.</>
+            : quote.hourly
+              ? <>Big piece: quote by the hour, band {money(quote.lowCents)}+.</>
+              : <>Starting number <span className="text-white font-semibold">{money(quote.cents)}</span> <span className="text-[#6b6b6b]">· band {money(quote.lowCents)}–{money(quote.highCents)}{quote.belowBudget ? ' · under their budget' : ''}</span></>}
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={openAccept}
+          className="flex items-center justify-center gap-1.5 bg-[#c9a84c] text-black font-bold py-3 rounded-xl text-sm"
+        >
+          <CheckCircle className="w-3.5 h-3.5" />
+          Accept
+        </button>
+        <button
+          onClick={openMoreInfo}
+          className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#c9a84c]/30 text-[#e0c878] font-semibold py-3 rounded-xl text-sm"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span className="truncate">{status === 'info_requested' ? 'Ask again' : 'More info'}</span>
+        </button>
+        <button
+          onClick={() => setPanel('decline')}
+          className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#2a2a2a] text-[#9b9b9b] font-medium py-3 rounded-xl text-sm hover:border-red-800/40 hover:text-red-400 transition-colors"
+        >
+          <XCircle className="w-3.5 h-3.5" />
+          Pass
+        </button>
+      </div>
     </div>
+  )
+}
+
+function ReviewButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-center justify-center gap-1.5 w-full bg-[#1e1e1e] border border-[#c9a84c]/30 text-[#e0c878] font-semibold py-3 rounded-xl text-sm">
+      <Star className="w-3.5 h-3.5" />
+      Ask for a review
+    </button>
   )
 }
 

@@ -2,6 +2,7 @@ import { artistContext } from '@/lib/artist-session'
 import { notifyClient } from '@/lib/notify'
 import { inquiryUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+import { chatwootReply } from '@/lib/inbound/chatwoot'
 
 // Artist posts a free-form message on a match thread. Does not change
 // status — that is what /api/dashboard/respond is for.
@@ -26,19 +27,29 @@ export async function POST(req: Request) {
 
   const { data: match } = await db
     .from('matches')
-    .select('id, status, client_name, client_email, client_phone, ai_summary')
+    .select('id, status, client_name, client_email, client_phone, ai_summary, external_thread_id')
     .eq('id', matchId)
     .eq('artist_id', artist.id)
     .single()
   if (!match) return Response.json({ error: 'Match not found' }, { status: 404 })
 
+  // Where the reply goes: back into the client's DM thread when the lead came
+  // through Chatwoot, and by email and text when we have those. The thread
+  // row is written first; delivery is best-effort and never undoes it.
+  const dmThread = typeof match.external_thread_id === 'string' && match.external_thread_id.startsWith('chatwoot:') ? match.external_thread_id : null
   const row = { match_id: matchId, sender: 'artist', body }
   const { data: inserted, error } = await db.from('match_messages').insert(row).select('id, created_at').single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
   const inquiry = inquiryUrl(matchId)
   const name = match.client_name || 'there'
+  let delivered: string[] = []
   try {
+    if (dmThread) {
+      const ok = await chatwootReply(dmThread, body)
+      if (ok) delivered.push('dm')
+    }
+    if (match.client_email || match.client_phone) delivered = delivered.concat([match.client_email ? 'email' : '', match.client_phone ? 'sms' : ''].filter(Boolean))
     await notifyClient({
       email: match.client_email,
       phone: match.client_phone,
@@ -61,6 +72,7 @@ ${inquiry}
 
   return Response.json({
     ok: true,
+    delivered,
     message: { id: inserted?.id ?? null, sender: 'artist', body, created_at: inserted?.created_at ?? new Date().toISOString() },
   })
 }

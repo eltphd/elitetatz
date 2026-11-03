@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send } from 'lucide-react'
+import { channelLabel } from '@/lib/channel-types'
 
 // The two-way thread between the artist and an anonymous client. Rendered
 // on both sides: the dashboard (viewer 'artist') and /inquiry (viewer 'client').
@@ -12,6 +13,8 @@ export interface ThreadMessage {
   sender: 'artist' | 'client' | 'system'
   body: string
   created_at: string
+  /** Where the message came from or went; shown on the bubble when it is not the website. */
+  channel?: string | null
 }
 
 export function formatWhen(iso: string): string {
@@ -45,6 +48,7 @@ export function ThreadList({
         }
         const mine = m.sender === viewer
         const label = m.sender === 'artist' ? artistName : clientName
+        const via = m.channel && !['web', 'concierge'].includes(m.channel) && viewer === 'artist' ? ` · via ${channelLabel(m.channel, true)}` : ''
         return (
           <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
             <div
@@ -55,7 +59,7 @@ export function ThreadList({
               }`}
             >
               <span className="block text-[9px] opacity-60 mb-1 font-medium uppercase tracking-wide">
-                {label} · {formatWhen(m.created_at)}
+                {label} · {formatWhen(m.created_at)}{via}
               </span>
               {m.body}
             </div>
@@ -70,14 +74,29 @@ export function ReplyBox({
   onSend,
   placeholder = 'Write a reply…',
   disabled = false,
+  initialText,
+  initialKey = 0,
+  hint,
 }: {
   onSend: (body: string) => Promise<void>
   placeholder?: string
   disabled?: boolean
+  /** Text dropped in from outside (an assistant draft). Re-applied whenever initialKey changes. */
+  initialText?: string
+  initialKey?: number
+  /** One line under the box: where this reply will go. */
+  hint?: string
 }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  // A new draft from outside replaces what is in the box; her own typing is
+  // never overwritten unless another draft arrives (the key changes).
+  const [appliedKey, setAppliedKey] = useState(0)
+  if (initialKey !== appliedKey) {
+    setAppliedKey(initialKey)
+    if (initialKey > 0 && initialText) setText(initialText)
+  }
 
   async function submit() {
     const body = text.trim()
@@ -117,6 +136,7 @@ export function ReplyBox({
         </button>
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
+      {hint && !error && <p className="text-[10px] text-[#6b6b6b]">{hint}</p>}
     </div>
   )
 }

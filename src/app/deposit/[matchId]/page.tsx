@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { verifyMatch } from '@/lib/tokens'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { DepositClient } from './DepositClient'
+
+export const metadata: Metadata = { title: `Deposit · ${ARTIST_CONFIG.handle}`, robots: { index: false, follow: false } }
 
 // Anonymous client, signed link. The token travels with every request the
 // page makes, so the deposit API can prove the visitor owns this inquiry.
