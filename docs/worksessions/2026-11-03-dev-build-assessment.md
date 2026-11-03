@@ -15,7 +15,8 @@
 | [#28](https://github.com/eltphd/woopsi-ink/pull/28) | woopsi-ink | PR B: scheduled Reconnect send (cron, idempotency keys, day-3 report, thin CLI) | open, 23 tests green |
 | [#29](https://github.com/eltphd/woopsi-ink/pull/29) | woopsi-ink | Collectors Club default points at `elitetatz.app` | open |
 | [#12](https://github.com/eltphd/rawsunart-web/pull/12) | rawsunart-web | PR E: Article schema and tracked clicks | **not merged**: the merge was blocked by this session's permissions; CI green, mergeable, one click for Erica |
-| domain PR | rawsunart-web | every `elitetatz.vercel.app` reference on rawsunart.com becomes `elitetatz.app` | open, stacked on #12 |
+| [#13](https://github.com/eltphd/rawsunart-web/pull/13) | rawsunart-web | every `elitetatz.vercel.app` reference on rawsunart.com becomes `elitetatz.app` | open, stacked on #12 |
+| [#33](https://github.com/eltphd/elitetatz/pull/33) | elitetatz | this brief in `docs/worksessions` | open |
 
 **Domain.** `elitetatz.app` (bought on Vercel, Nov 3, auto-renew, Vercel nameservers) is attached to the elitetatz project and serves (`/artists` → 200); `www.elitetatz.app` redirects 308 to the apex. `NEXT_PUBLIC_APP_URL` on Production now reads `https://elitetatz.app`. It is a build-time value, so it takes effect on the next production deployment, which is whichever elitetatz PR merges first. The `vercel.app` host keeps serving; every link already in Lacey's mail keeps working.
 
@@ -108,9 +109,9 @@
 
 ## 5. Operator runbook (in order)
 
-1. Merge rawsunart-web #12, then its stacked domain PR. (Article schema, click events, links to `elitetatz.app`.)
+1. Merge rawsunart-web #12, then #13. (Article schema, click events, links to `elitetatz.app`.)
 2. Supabase SQL editor: `supabase/migrations/016_hold_events.sql`.
-3. Vercel → elitetatz → Production: `CRON_SECRET`; optionally `SLACK_FOLLOWUPS_WEBHOOK` (an incoming webhook for `#followups-needed`). Merge #29, #30, #31, #32. The first merge deploys with `elitetatz.app` as the app URL.
+3. Vercel → elitetatz → Production: `CRON_SECRET`; optionally `SLACK_FOLLOWUPS_WEBHOOK` (an incoming webhook for `#followups-needed`). Merge #29, #30, #31, #32, #33. The first merge deploys with `elitetatz.app` as the app URL.
 4. Supabase Auth URL configuration; Google OAuth client redirect URI and origin; Cloudflare Turnstile hostnames (remaining #4–#6).
 5. Vercel → woopsi-ink → Production: `CRON_SECRET`, `RSA_SUPABASE_URL`, `RSA_SUPABASE_SERVICE_ROLE_KEY`, `RSA_RESEND_API_KEY`, `RSA_MAIL_STREET`, `SLACK_FOLLOWUPS_WEBHOOK`. Merge woopsi-ink #28 and #29.
 6. From `~/GithubsRepos/woopsi-ink` with the same values in `.env.local`: `node scripts/rsa-reconnect.mjs --test you@…` proves the key and the domain; `--status` reads her decision.
@@ -128,3 +129,5 @@
 If steps 1–7 are done this week, the first Reconnect batch leaves on the next Tuesday morning after Lacey's tap, every reply lands as a "Returning" card, and a client who waits more than 36 hours hears from the system before they hear nothing. If they stall, the code sits behind nine variables and three console settings; the 197 addresses age; and the next ask of Lacey is harder because the link she has today leads to a queue that never moves.
 
 Sources: the repos at the commits in the PRs above; Supabase `approvals`, `rsa_contacts`, `matches`; Vercel CLI (`teams ls`, `env ls`, `api`); live HTTP probes; Erica's message of Nov 3, 2026 ("I bought elitetatz.app").
+
+Notion copy: https://www.notion.so/40d9b0f271a281a9b6f0efbf92fd1494
