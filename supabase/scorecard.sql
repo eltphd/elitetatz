@@ -40,3 +40,10 @@ select * from by_week order by week desc;
 -- select channel, count(*) as events, count(*) filter (where outcome = 'error') as errors,
 --        count(*) filter (where outcome = 'duplicate') as duplicates
 -- from inbound_events where received_at >= now() - interval '12 weeks' group by channel;
+
+-- Hold timers (migration 016): how often the system had to say "still with
+-- Lacey" and friends, by week and hold. A rising A1/A2 count is the number to
+-- act on; D and E mean clients are paying and then waiting.
+-- select date_trunc('week', sent_at)::date as week, hold, count(*)
+-- from hold_events where sent_at >= now() - interval '12 weeks'
+-- group by 1, 2 order by 1 desc, 2;

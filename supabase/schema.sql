@@ -1,7 +1,7 @@
 -- EliteTatz — production schema snapshot (public schema).
 --
 -- Generated 2026-11-03 from the live catalog of project twyrxtzjictiysxqjmhu
--- after migration 015 (approvals). This is a reference, not the source of truth: change the
+-- after migration 016 (hold_events). This is a reference, not the source of truth: change the
 -- database only through a new file in supabase/migrations/, then regenerate
 -- this snapshot. Tables are ordered so every foreign key target exists first.
 --
@@ -427,6 +427,17 @@ create table approvals (
 );
 CREATE INDEX approvals_artist_status_idx ON public.approvals USING btree (artist_id, status, created_at DESC);
 alter table approvals enable row level security;
+
+-- hold_events (migration 016): one row per hold message the cron has sent; the primary key makes it once
+create table hold_events (
+  match_id uuid not null,
+  hold text not null,
+  sent_at timestamp with time zone default now() not null,
+  constraint hold_events_pkey PRIMARY KEY (match_id, hold),
+  constraint hold_events_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+);
+CREATE INDEX hold_events_sent_idx ON public.hold_events USING btree (sent_at DESC);
+alter table hold_events enable row level security;
 
 -- reviews
 create table reviews (

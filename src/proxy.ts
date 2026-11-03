@@ -35,9 +35,10 @@ function isRetiredPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Public community endpoints are unauthenticated + CORS-served, and the
-  // inbound webhooks (email, Chatwoot, SMS) prove themselves by signature: no session work.
-  if (pathname.startsWith('/api/community') || pathname.startsWith('/api/inbound')) {
+  // Public community endpoints are unauthenticated + CORS-served, the inbound
+  // webhooks (email, Chatwoot, SMS) prove themselves by signature, and the cron
+  // routes by CRON_SECRET: no session work.
+  if (pathname.startsWith('/api/community') || pathname.startsWith('/api/inbound') || pathname.startsWith('/api/cron')) {
     return NextResponse.next({ request })
   }
 
@@ -100,9 +101,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the public community API, Next internals, the favicon
-  // and image assets. That covers every retired path above plus /dashboard.
+  // Everything except the public community API, the webhooks, the crons, Next
+  // internals, the favicon and image assets. That covers every retired path above plus /dashboard.
   matcher: [
-    '/((?!api/community|api/inbound|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/community|api/inbound|api/cron|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
