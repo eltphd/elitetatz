@@ -5,6 +5,7 @@ import { briefFollowUps, referenceLine } from '@/lib/brief'
 import { CHANNEL_LABEL, type Channel } from '@/lib/channels'
 import { attachmentAsImageBlock, type AttachmentRow } from '@/lib/attachments'
 import { suggestQuote, money } from '@/lib/quote'
+import { historyLine, type ClientHistory } from '@/lib/client-history'
 
 // The assistant in Lacey's inbox. It has read everything on the lead: the
 // brief, the concierge transcript, every message on the thread by every
@@ -23,6 +24,21 @@ export const MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string> = {
     'Draft the message Lacey would send this client to settle what is still open before she quotes. Write it as Lacey, in her register: warm, brief, direct, no fluff, no emoji, first person. Ask only what matters (at most three things), in the order she would ask. Do not quote a price. Do not mention the assistant or the inbox. Output only the message text, nothing before or after it.',
   quote:
     'Reason about the price for this piece using Lacey\'s bands and the suggested number below. Say whether the suggestion is right, high or low, in plain sentences she can check against the brief, and what would move it. If size or placement is unknown say so first. If the client\'s budget is under the band, say how she could meet it (lines only, smaller, or pass). End with a single line "Suggest: $X" or "Suggest: $X/hr, N sessions". Under 150 words.',
+}
+
+// A returning client is not a stranger. The same three buttons, read differently:
+// no qualification she already did with them, no pitch, dates over questions.
+export const RETURNING_MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string> = {
+  intent:
+    'This client has been tattooed by Lacey before (see CLIENT HISTORY). Do not treat them as a stranger. Tell her what is new in this request against what she already knows: is it an addition to her earlier work, a touch-up, or a new piece; what they want and why; how ready they are. Do not relist the qualifying questions she settles with first-timers unless this piece genuinely leaves one open. End with one line: offer dates now, or ask one thing first, and which thing. Under 150 words.',
+  clarify:
+    'Draft the message Lacey would send to someone she has tattooed before. No introduction, no studio pitch, no deposit policy unless they asked. Warm and familiar, like picking up a conversation, in her register: brief, direct, no emoji, first person. Confirm the piece in one line, ask at most two things only if they are genuinely open, and offer to get them on the books. Do not quote a price. Do not mention the assistant or the inbox. Output only the message text, nothing before or after it.',
+  quote:
+    'Reason about the price for this piece using Lacey\'s bands and the suggested number below, knowing this is a returning client. Say whether the suggestion is right, high or low in plain sentences. If this is a touch-up or an addition to her own earlier work, say so: she may price that below the band, her call. End with a single line "Suggest: $X" or "Suggest: $X/hr, N sessions". Under 120 words.',
+}
+
+export function modePrompt(mode: Exclude<AssistantMode, 'ask'>, returning: boolean): string {
+  return returning ? RETURNING_MODE_PROMPT[mode] : MODE_PROMPT[mode]
 }
 
 export interface LeadRow {
@@ -71,7 +87,7 @@ Rules:
 export async function buildLeadContext(
   db: SupabaseClient,
   lead: LeadRow,
-  opts: { messages: MsgRow[]; notes: NoteRow[]; attachments: AttachmentRow[]; transcript?: Array<{ role: string; content: string }> },
+  opts: { messages: MsgRow[]; notes: NoteRow[]; attachments: AttachmentRow[]; transcript?: Array<{ role: string; content: string }>; history?: ClientHistory },
 ): Promise<{ text: string; images: Anthropic.ImageBlockParam[] }> {
   let brief: Record<string, unknown> = {}
   try { brief = JSON.parse(lead.client_brief ?? '{}') } catch {}
@@ -79,6 +95,12 @@ export async function buildLeadContext(
   const lines: string[] = []
   lines.push(`LEAD ${lead.id.slice(0, 8)} · status ${lead.status} · arrived by ${CHANNEL_LABEL[(lead.channel as Channel)] ?? lead.channel} on ${new Date(lead.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`)
   lines.push(`Client: ${lead.client_name || 'name not given'}${lead.client_email ? ` · ${lead.client_email}` : ''}${lead.client_phone ? ` · ${lead.client_phone}` : ''}`)
+  if (opts.history && opts.history.kind !== 'new') {
+    const h = opts.history
+    lines.push(`CLIENT HISTORY: ${h.kind === 'returning' ? 'RETURNING CLIENT' : 'HAS WRITTEN BEFORE, NEVER BOOKED'} · ${historyLine(h)}${h.sessions ? ` (${h.sessions} past session${h.sessions === 1 ? '' : 's'} in this inbox)` : ''}${h.onList ? ` · on her reviewed client list${h.listSource ? ` (${h.listSource})` : ''}` : ''}. Treat them accordingly: no pitch, no re-qualifying what she already knows about them.`)
+  } else {
+    lines.push('CLIENT HISTORY: first-timer (no earlier lead, not on her client list).')
+  }
   lines.push('')
   lines.push('BRIEF (as captured; fields may be empty):')
   const fields: Array<[string, unknown]> = [

@@ -5,6 +5,7 @@ import type { ThreadMessage } from '@/components/InquiryThread'
 import { LeadCard, groupOf, type Group, type Lead } from '@/app/dashboard/LeadCard'
 import type { AttachmentView } from '@/app/dashboard/AttachmentGrid'
 import type { NoteView } from '@/app/dashboard/NotesPanel'
+import type { ClientHistory } from '@/lib/client-history'
 
 // The inbox with four made-up leads, one per channel, for showing Lacey what
 // she gets before any account is connected. Nothing on this page is real and
@@ -92,7 +93,28 @@ const LEADS: Lead[] = [
     ai_summary: 'Small lines-only wave behind the ear',
     client_brief: JSON.stringify({ concept: 'Small lines-only wave behind the ear', styles: ['fine-line'], placement: 'behind the ear', size: '1.5 inches', budget_max_cents: 30000 }),
   },
+  {
+    ...base,
+    id: 'demo-5555-aaaa-bbbb-000000000005',
+    status: 'pending',
+    channel: 'email',
+    created_at: at(5 * H),
+    client_name: 'Jordan Ellis',
+    client_email: 'jordan.ellis@example.com',
+    client_phone: '+16145550177',
+    ai_summary: 'Second watercolor fern, right shoulder, to pair with the first',
+    client_brief: JSON.stringify({
+      concept: 'A second watercolor fern on the right shoulder to pair with the one from last spring, a little warmer in color',
+      styles: ['watercolor'], placement: 'right shoulder', size: 'same as the first, about 5 inches',
+      budget_max_cents: 60000, has_reference: false, creative_freedom: true, subject: 'Round two!',
+    }),
+  },
 ]
+
+// Who Lacey already knows. Read from her records on the live inbox; fixed here.
+const HISTORY: Record<string, ClientHistory> = {
+  [LEADS[4].id]: { kind: 'returning', sessions: 1, lastSessionAt: at(230 * D), priorLeads: 0, onList: true, listStatus: 'legacy-customer', listSince: '2025', lastService: null, listSource: 'client export' },
+}
 
 const THREADS: Record<string, ThreadMessage[]> = {
   [LEADS[0].id]: [
@@ -109,6 +131,10 @@ const THREADS: Record<string, ThreadMessage[]> = {
     { id: 't7', sender: 'system', body: 'Inquiry sent from the concierge.', created_at: at(4 * D) },
     { id: 't8', sender: 'artist', body: 'Accepted — quote $650.\nProposed dates: Thu Nov 13 at 1pm or Sat Nov 15 at noon', created_at: at(3 * D) },
     { id: 't9', sender: 'client', body: 'Saturday works! Paying the deposit now.', created_at: at(3 * D - 2 * H) },
+  ],
+  [LEADS[4].id]: [
+    { id: 't14', sender: 'system', body: 'Inquiry arrived by email.', created_at: at(5 * H) },
+    { id: 't15', sender: 'client', channel: 'email', body: "Hey Lacey! It's Jordan, you did my fern last March. I'm ready for its pair on the other shoulder, maybe a little warmer in the color this time. Same size. Any Saturdays open this month? I know the drill on the deposit.", created_at: at(5 * H) },
   ],
   [LEADS[3].id]: [
     { id: 't10', sender: 'system', body: 'Inquiry arrived by text message.', created_at: at(12 * D) },
@@ -168,6 +194,7 @@ export default function DemoInboxPage() {
           </div>
           <nav className="flex items-center gap-4">
             <span className="text-xs text-[#c9a84c] font-medium">Add a lead</span>
+            <Link href="/demo/approvals" className="text-xs text-[#c9a84c] font-medium">Approvals <span className="text-[10px] font-bold bg-[#c9a84c] text-black rounded-full px-1.5 leading-4">2</span></Link>
             <Link href="/rawsunart" className="text-xs text-[#9b9b9b] font-medium hidden sm:inline">Portfolio →</Link>
           </nav>
         </div>
@@ -190,7 +217,8 @@ export default function DemoInboxPage() {
 
         <div className="mb-6 bg-[#141414] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#9b9b9b] leading-relaxed">
           <p className="text-white font-semibold mb-1">What you are looking at</p>
-          <p>Four inquiries that came in four different ways: an Instagram DM, an email, the website concierge, a text. Each is one card with the client&apos;s words, their reference photos, what is still open, a starting number from your price bands, your private notes, and an assistant that has read all of it. Tap anything.</p>
+          <p>Five inquiries that came in four different ways: an Instagram DM, two emails, the website concierge, a text. Each is one card with the client&apos;s words, their reference photos, what is still open, a starting number from your price bands, your private notes, and an assistant that has read all of it. One of them is someone you have tattooed before, and the card says so. Tap anything.</p>
+          <p className="mt-2">Nothing changes in what you do now. Email still lands in Gmail, DMs stay in Instagram, texts still ring your phone. This is a copy of all of it in one place, with the thinking done. Use it alongside, and see which one you reach for.</p>
         </div>
 
         {sections.map(({ key, title, hint, pulse }) => {
@@ -205,7 +233,7 @@ export default function DemoInboxPage() {
               </div>
               <div className="space-y-3">
                 {list.map((lead) => (
-                  <LeadCard key={lead.id} lead={lead} group={key} thread={THREADS[lead.id] ?? []} attachments={FILES[lead.id] ?? []} notes={NOTES[lead.id] ?? []} reviewUrlConfigured demo />
+                  <LeadCard key={lead.id} lead={lead} group={key} thread={THREADS[lead.id] ?? []} attachments={FILES[lead.id] ?? []} notes={NOTES[lead.id] ?? []} history={HISTORY[lead.id]} reviewUrlConfigured demo />
                 ))}
               </div>
             </section>

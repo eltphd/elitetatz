@@ -1,6 +1,6 @@
 # One inbox for every lead — 2026-11-03
 
-**For:** Erica (operator), Lacey (artist). **State:** built on branch `feat/lead-inbox`; migration 014 and the channel accounts still to be connected (list at the end).
+**For:** Erica (operator), Lacey (artist). **State:** merged to main on 2026-11-03 (PR 26) with migration 014 applied. Second pass the same day: returning clients, the approvals tab, the Reconnect send gate (migration 015, to apply).
 
 ## The problem in one paragraph
 
@@ -44,11 +44,52 @@ Lacey's inquiries arrive five ways: the website form and concierge (already in E
 
 **Postiz** is a publishing tool (schedule posts across networks). It is the right tool for the content side (the monthly studio diary, drops, flash) and has nothing to do with inbound leads. Keep it for publishing; do not route messages through it.
 
+## Runs alongside, not instead
+
+Nothing in this changes what Lacey does today. Email still lands in her Gmail (the forward is a copy). DMs stay in Instagram and Messenger (Chatwoot mirrors them; she never has to open it). Texts still ring her phone. The inbox is a second copy of all of it in one place, with the reading done: what they want, what is open, a starting number, who they are to her. The pitch to her is one sentence: try it next to what you already do for a month, and see which one you reach for when a lead comes in. If she replies from Gmail instead of the inbox, nothing breaks; the inbox simply shows the client's side and her reply is missing until she pastes it or stops caring.
+
+## First-timers and returning clients are not the same lead
+
+She will ask about this first, because most of her work is repeat clients and a few people have her cell. The inbox reads her own records at display time (`src/lib/client-history.ts`): past leads in `matches` by email or phone, and the client list she reviewed on October 16 in `rsa_contacts` by email. Nothing is stored, so it is never stale and never wrong about a new person.
+
+| | First-timer | Returning (tattooed by her before) | Known (wrote before, never booked) |
+|---|---|---|---|
+| Card | New badge; "Still to settle before you quote" list; starting number from the bands | Green **Returning** badge with "2 sessions with you, last Mar 2025" (or "tattooed by you, last 2021-08" from the list); "They know you. Skip the pitch: confirm the piece and offer dates." | "Wrote before" badge; "Not their first message. Worth a look at why it did not book last time." |
+| Process | Qualify (what, where, size, budget, reference) → quote → deposit → book | Confirm the piece → offer dates → deposit link → book. No pitch, no deposit policy unless asked | Same as first-timer, with the history in view |
+| Assistant chips | What do they want? · Draft a clarifying msg · Check the price | What's new with them? · Draft a welcome back · Check the price | Same as first-timer, with the history in its context |
+| Assistant prompt | Reads for intent and unknowns, recommends quote / ask / pass | Told it is a returning client: what is new against what she knows, is it an addition, a touch-up or a new piece; no re-qualifying; "offer dates now, or ask one thing" | Told they have written before |
+
+How they reach her, and whether it lands:
+
+| Route | In the inbox? |
+|---|---|
+| Email to lacey@rawsunart.com | Yes, once the Gmail forward is on |
+| Text to the Dialpad studio line | Yes, once the Dialpad webhook is on |
+| Call to the Dialpad line | Not yet. Next: Dialpad's voicemail transcription event into the same `ingest`, so a voicemail becomes a lead with the transcript as the client's words |
+| Text or call to her personal cell | No, and it should not be: that is hers. "Add a lead" with the mic covers it in thirty seconds when she wants it on the card |
+| DM, Messenger | Yes, through Chatwoot |
+
+## Approvals: her okay before anything goes out
+
+`/dashboard/approvals`, two tabs: **Email campaigns** and **Blog posts**. Each item is shown exactly as it will go out (the email in its own frame, the plain-text version a tap away), with the subject line, who gets it and how many, and one paragraph on what it is. She taps **Approve** or **Ask for changes** (with notes). Approve is a record, not a send.
+
+- Erica submits with `node scripts/submit-approval.mjs` (any item) or, for the Reconnect email, `node scripts/rsa-reconnect.mjs --submit-approval` in woopsi-ink, which renders the real email and counts the real audience. Lacey gets an email and a text that something is waiting.
+- Her decision emails `OPERATOR_EMAIL` (falls back to `ARTIST_NOTIFICATION_CC`).
+- The Reconnect send (`--confirm-lacey-reviewed`) now reads `approvals` for key `rsa-reconnect-1` and refuses unless it says `approved`. After the run it marks the row `sent`.
+- Blog posts: approval is recorded the same way; publishing is Erica committing the page to rawsunart-web.
+- Demo with the real Reconnect copy in it: `/demo/approvals`.
+
+Migration: `supabase/migrations/015_approvals.sql`. Env: `OPERATOR_API_KEY` (same value on Vercel and in the operator's `.env.local`), `OPERATOR_EMAIL`.
+
+## Where the env vars go
+
+All of them go in **Vercel → elitetatz → Settings → Environment Variables**, scope Production (and Preview if you want preview deploys to work), then redeploy. Nothing is set in Supabase: it only takes the migrations. Chatwoot, Resend and Dialpad each hold their own side of the handshake (the webhook URL pointing at the app, and the secret you copy into Vercel). The operator's `.env.local` in woopsi-ink needs `OPERATOR_API_KEY` and `ELITETATZ_URL` for the submit step, next to the Supabase and Resend values it already has.
+
 ## Trust rules (what the system will not do)
 
 1. **No automatic replies to clients.** Inbound adapters write to the database and notify Lacey. The only paths that write to a client are her buttons and her reply box.
 2. **The assistant drafts; it does not send.** It has no outbound call. A draft is text in a box.
-3. **Nothing goes to the client list** (`rsa_contacts`, `community_members`) from any of this. The Reconnect email script is untouched and is not run.
+3. **Nothing goes to the client list** (`rsa_contacts`, `community_members`) from any of this. The Reconnect email script will not run without her approval on record, and that approval is hers to give in the inbox.
 4. **Private stays private.** Notes and assistant exchanges are never rendered on the client page or in any email. Files are in a private bucket; URLs expire in an hour.
 5. **Redelivery is a no-op.** Every inbound message carries the source's id; the second delivery does nothing.
 6. **Her own mail does not become a lead** unless it wraps a forwarded message, and then the forwarded sender is the lead.
@@ -56,8 +97,8 @@ Lacey's inquiries arrive five ways: the website form and concierge (already in E
 
 ## What Erica connects (in this order)
 
-1. **Apply migration 014** in Supabase (SQL editor, paste `supabase/migrations/014_lead_inbox.sql`), then regenerate `supabase/schema.sql`. The dashboard reads the new columns; without the migration the deploy will 500 on `/dashboard`. Everything else can wait.
-2. **Deploy the branch** (merge the PR). Set `ASSISTANT_MODEL` only if you want a different model.
+1. ~~Apply migration 014~~ done 2026-11-03. **Apply migration 015** (`supabase/migrations/015_approvals.sql`) the same way, then regenerate `supabase/schema.sql`. Without it `/dashboard` still works; `/dashboard/approvals` and the Reconnect send gate do not.
+2. **Set `OPERATOR_API_KEY`** (`openssl rand -hex 32`) and `OPERATOR_EMAIL` in Vercel; the same key in woopsi-ink's `.env.local`. Then `node scripts/rsa-reconnect.mjs --submit-approval` puts the real email in her queue.
 3. **Email.** Resend → Receiving → add `inbox.rawsunart.com` (an MX record at the DNS host). Webhooks → add endpoint `https://<app>/api/inbound/email`, event `email.received`; copy the signing secret into `RESEND_WEBHOOK_SECRET`. Set `INBOUND_EMAIL_ADDRESS=leads@inbox.rawsunart.com`. In Lacey's Gmail: Settings → Forwarding → add that address, confirm, then a filter (from anyone, not from her own addresses) → forward. Send one test from an outside address.
 4. **Instagram and Messenger.** Chatwoot account (cloud) → Inboxes → add Instagram (needs the Instagram Business account linked to the Facebook Page; Lacey logs in once) and Facebook Page. Settings → Integrations → Webhooks → `https://<app>/api/inbound/chatwoot?key=<long random>` with `message_created`. Profile → Access Token → `CHATWOOT_API_TOKEN`; the account id is in the URL → `CHATWOOT_ACCOUNT_ID`; `CHATWOOT_URL=https://app.chatwoot.com`; the random key → `CHATWOOT_WEBHOOK_SECRET`. Send one DM from another account.
 5. **Texts.** Dialpad API: `POST /api/v2/webhooks` with `hook_url` and a `secret`, then `POST /api/v2/subscriptions/sms` on that webhook, `direction: inbound`, target the studio line. The secret → `DIALPAD_WEBHOOK_SECRET`.
