@@ -81,6 +81,23 @@ How they reach her, and whether it lands:
 
 Migration: `supabase/migrations/015_approvals.sql`. Env: `OPERATOR_API_KEY` (same value on Vercel and in the operator's `.env.local`), `OPERATOR_EMAIL`.
 
+## Hold timers: nobody waits in silence
+
+Five states used to go quiet with no message to anyone. An hourly cron (`vercel.json` → `/api/cron/holds`, guarded by `CRON_SECRET`) now sends one message per state, once, between 9 AM and 8 PM Eastern, and records it in `hold_events` (migration 016). The decision is a pure function (`src/lib/holds.ts`, `dueHolds`) with a test per rule.
+
+| Hold | When | Client hears | Lacey hears |
+|---|---|---|---|
+| A1 | waiting on Lacey 36 h (new lead, or the client wrote after her) | "Still with Lacey. She reads every inquiry herself; you'll hear from her by {day}." | nudge, email + text |
+| A2 | 72 h | "Her books are full this week; she'll answer by {day}. Reply here if you'd rather not wait." | nudge, plus one line in `#followups-needed` (`SLACK_FOLLOWUPS_WEBHOOK`) ending YOUR MOVE |
+| B | she asked, client silent 72 h | "Lacey asked one thing before she quotes. Answer whenever you're ready; your spot stays open two weeks." | nothing; at 14 days one line, as a private note on the lead |
+| C | quoted, no deposit 72 h | "Your quote is good for 14 days. Deposit link: …" | nothing; at 14 days "Quote expired; reopen or let it go." |
+| D | deposit in, no date 72 h | "Your spot is held. Pick a date here: …" | nothing |
+| E | date asked, unconfirmed 48 h | "Lacey has your date request and will confirm by {day}." | nudge |
+
+What it will not do: change a lead's status (the inbox groups stay hers), write to a lead whose hold opened more than a week before the cron existed (an old pending lead is left alone), or send anything twice (the `hold_events` row is written before the send, and a duplicate key stops the tick). Client lines are written to the thread as the system, so she sees what they were told. Weekly counts: the hold query at the end of `supabase/scorecard.sql`.
+
+Env: `CRON_SECRET` (Vercel sets the bearer on the cron call; without it the route answers 503 and nothing runs), `SLACK_FOLLOWUPS_WEBHOOK` (optional).
+
 ## Where the env vars go
 
 All of them go in **Vercel → elitetatz → Settings → Environment Variables**, scope Production (and Preview if you want preview deploys to work), then redeploy. Nothing is set in Supabase: it only takes the migrations. Chatwoot, Resend and Dialpad each hold their own side of the handshake (the webhook URL pointing at the app, and the secret you copy into Vercel). The operator's `.env.local` in woopsi-ink needs `OPERATOR_API_KEY` and `ELITETATZ_URL` for the submit step, next to the Supabase and Resend values it already has.
