@@ -1,7 +1,8 @@
 import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, Wallet, Link2, Receipt, Plus, ClipboardCheck } from 'lucide-react'
+import Image from 'next/image'
+import { Clock, CheckCircle, CalendarCheck, MessageCircle, Wallet, Link2, Receipt, Plus, ClipboardCheck } from 'lucide-react'
 import type { ThreadMessage } from '@/components/InquiryThread'
 import { signAttachments, type AttachmentRow } from '@/lib/attachments'
 import { LeadCard, groupOf, type Group, type Lead } from './LeadCard'
@@ -88,9 +89,7 @@ export default async function DashboardPage() {
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/90 backdrop-blur-md border-b border-[#2a2a2a] px-4 py-3">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#c9a84c] flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-black" />
-            </div>
+            <Image src="/logo-mark.svg" alt="EliteTatz" width={32} height={32} unoptimized priority className="w-8 h-8" />
             <div>
               <p className="text-sm font-bold">RawSunArt Studio</p>
               <p className="text-[10px] text-[#6b6b6b]">Lead inbox · {artist?.name ?? user.email}</p>
