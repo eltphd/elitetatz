@@ -21,11 +21,18 @@ const DEMO: Record<Exclude<Mode, 'ask'>, string> = {
   quote: "The starting number of $375 is right for about 4 inches of watercolor on the forearm. It sits above the band's $250 floor because color takes longer than lines, and a single flower keeps drawing time down. If they add fine lines under the color I would hold $375; if it wraps and grows past 5 inches it moves into the next band, $400–700, and I would say $475. Their $500 ceiling works either way.\n\nSuggest: $375",
 }
 
+const DEMO_RETURNING: Record<Exclude<Mode, 'ask'>, string> = {
+  intent: "Jordan is back for a second piece, not a stranger: you did the watercolor fern on their left shoulder in March 2025 and they want its pair on the right. Nothing to re-qualify: placement and size are set by the first one, and they already know your deposit. What is new is the color, they want it warmer than the first. They are ready; they asked for a Saturday.\n\nOffer dates now. If anything, ask one thing: whether the two should read as a matched pair or as siblings.",
+  clarify: "Hey Jordan! Good to hear from you. A pair for the right shoulder sounds right, and warmer works. Do you want it to mirror the first one or feel like its own fern? I have Saturdays opening up this month, send me a couple that work and I'll hold one.",
+  quote: "The starting number of $500 is right for a 5 inch watercolor piece on the shoulder, same band as the first one. Because it is a companion to your own earlier work and the design is half settled, you could come in under it if you want to; your call. Warmer color does not move it.\n\nSuggest: $500",
+}
+
 export function AssistantPanel({
   matchId,
   notes,
   onDraft,
   onQuestion,
+  returning = false,
   demo = false,
 }: {
   matchId: string
@@ -34,6 +41,8 @@ export function AssistantPanel({
   onDraft: (text: string) => void
   /** Put it in the "More info" question box instead. */
   onQuestion?: (text: string) => void
+  /** Someone she has tattooed before: the chips read differently. */
+  returning?: boolean
   demo?: boolean
 }) {
   const initial: Exchange[] = notes
@@ -54,13 +63,15 @@ export function AssistantPanel({
     const q = mode === 'ask' ? question.trim() : ''
     if (mode === 'ask' && !q) return
     setBusy(true); setError(''); setOpen(true)
-    const label = mode === 'ask' ? q : mode === 'intent' ? 'What does this client want?' : mode === 'clarify' ? 'Draft a message to settle what is open' : 'Check the price'
+    const label = mode === 'ask' ? q : mode === 'intent' ? (returning ? 'What is new with them?' : 'What does this client want?') : mode === 'clarify' ? (returning ? 'Draft a welcome back' : 'Draft a message to settle what is open') : 'Check the price'
     setItems((l) => [...l, { id: `q-${Date.now()}`, kind: 'question', body: label }])
     const kind: 'answer' | 'draft' = mode === 'clarify' ? 'draft' : 'answer'
     setLive({ kind, body: '' })
     try {
       if (demo) {
-        const text = mode === 'ask' ? "From the thread: they mentioned the piece is for their mom, who grew peonies. That is why the color matters more than the line work to them. If you want to honor that, the watercolor-forward read is the one to quote." : DEMO[mode]
+        const text = mode === 'ask'
+          ? (returning ? "From your records: you did their first piece in March 2025, a watercolor fern on the left shoulder. This one goes on the other shoulder, so they are asking for a pair. That is why they skipped the questions a first-timer asks." : "From the thread: they mentioned the piece is for their mom, who grew peonies. That is why the color matters more than the line work to them. If you want to honor that, the watercolor-forward read is the one to quote.")
+          : returning ? DEMO_RETURNING[mode] : DEMO[mode]
         for (let i = 0; i < text.length; i += 3) {
           await new Promise((r) => setTimeout(r, 12))
           setLive({ kind, body: text.slice(0, i + 3) })
@@ -122,8 +133,8 @@ export function AssistantPanel({
       {open && (
         <div className="mt-2 space-y-2">
           <div className="grid grid-cols-3 gap-1.5">
-            <Chip onClick={() => run('intent')} disabled={busy} icon={<Eye className="w-3 h-3" />}>What do they want?</Chip>
-            <Chip onClick={() => run('clarify')} disabled={busy} icon={<MessageSquareQuote className="w-3 h-3" />}>Draft a clarifying msg</Chip>
+            <Chip onClick={() => run('intent')} disabled={busy} icon={<Eye className="w-3 h-3" />}>{returning ? "What's new with them?" : 'What do they want?'}</Chip>
+            <Chip onClick={() => run('clarify')} disabled={busy} icon={<MessageSquareQuote className="w-3 h-3" />}>{returning ? 'Draft a welcome back' : 'Draft a clarifying msg'}</Chip>
             <Chip onClick={() => run('quote')} disabled={busy} icon={<BadgeDollarSign className="w-3 h-3" />}>Check the price</Chip>
           </div>
 

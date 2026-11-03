@@ -28,6 +28,7 @@ export interface LeadWorkspaceProps {
   replyVia: string
   reviewUrlConfigured: boolean
   sessionDone: boolean
+  returning?: boolean
   demo?: boolean
 }
 
@@ -60,6 +61,7 @@ export function LeadWorkspace(p: LeadWorkspaceProps) {
         notes={p.notes}
         onDraft={(t) => { setDraft(t); setDraftKey((k) => k + 1) }}
         onQuestion={canAskMore && p.actionable ? (t) => { setQuestion(t); setQuestionKey((k) => k + 1) } : undefined}
+        returning={p.returning}
         demo={p.demo}
       />
       <NotesPanel matchId={p.matchId} notes={p.notes} demo={p.demo} />

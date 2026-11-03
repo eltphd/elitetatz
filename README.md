@@ -50,6 +50,9 @@ CI (`.github/workflows/ci.yml`) runs the first three on every pull request and o
 | `src/proxy.ts` | Session refresh, `/dashboard` guard, redirects for retired routes |
 | `supabase/migrations` | Every database change, in order |
 | `supabase/schema.sql` | Generated snapshot of production (reference only) |
+| `src/app/dashboard/approvals/` | Her okay before an email campaign or blog post goes out; `api/approvals` is the operator's door, `api/dashboard/approvals` her decision |
+| `src/lib/client-history.ts` | First-timer vs returning vs known, read from her own records at display time |
+| `scripts/submit-approval.mjs` | Put something in her approvals queue, or read her decision back |
 
 ## Database rules
 

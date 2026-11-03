@@ -1,4 +1,4 @@
-import { User, Mail, Phone, AlertTriangle, HelpCircle, Camera, MessageCircle, AtSign, Globe, Smartphone, PenLine, Sparkles } from 'lucide-react'
+import { User, Mail, Phone, AlertTriangle, HelpCircle, Camera, MessageCircle, AtSign, Globe, Smartphone, PenLine, Sparkles, Repeat } from 'lucide-react'
 import type { ThreadMessage } from '@/components/InquiryThread'
 import { inquiryUrl, linksConfigured } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
@@ -9,6 +9,7 @@ import { channelLabel } from '@/lib/channel-types'
 import { AttachmentGrid, type AttachmentView } from './AttachmentGrid'
 import { LeadWorkspace } from './LeadWorkspace'
 import type { NoteView } from './NotesPanel'
+import { historyLine, NEW_CLIENT, type ClientHistory } from '@/lib/client-history'
 
 // One lead, whatever channel it came by: who, what, the files, what is still
 // open, the starting number, and then her buttons, the assistant, her notes
@@ -118,6 +119,7 @@ export function LeadCard({
   attachments = [],
   notes = [],
   reviewUrlConfigured = false,
+  history = NEW_CLIENT,
   demo = false,
 }: {
   lead: Lead
@@ -126,6 +128,7 @@ export function LeadCard({
   attachments?: AttachmentView[]
   notes?: NoteView[]
   reviewUrlConfigured?: boolean
+  history?: ClientHistory
   demo?: boolean
 }) {
   let brief: Record<string, unknown> = {}
@@ -160,6 +163,8 @@ export function LeadCard({
   const quote = ['pending', 'info_requested'].includes(lead.status) ? suggestQuote(brief) : null
   const hasRef = attachments.length > 0 || Boolean(brief.has_reference)
   const links = !demo && linksConfigured()
+  const returning = history.kind === 'returning'
+  const known = history.kind === 'known'
 
   return (
     <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
@@ -169,7 +174,11 @@ export function LeadCard({
             <User className="w-4 h-4 text-[#6b6b6b]" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-tight truncate">{name}{handle && name !== handle ? <span className="text-[#6b6b6b] font-normal"> {handle}</span> : null}</p>
+            <p className="text-sm font-semibold leading-tight truncate">
+              {name}{handle && name !== handle ? <span className="text-[#6b6b6b] font-normal"> {handle}</span> : null}
+              {returning && <span className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] font-semibold text-green-400 bg-green-900/20 border border-green-800/40 rounded-full px-1.5 py-px"><Repeat className="w-2.5 h-2.5" />Returning</span>}
+              {known && <span className="ml-1.5 inline-flex items-center align-middle text-[10px] font-semibold text-[#9b9b9b] bg-[#1e1e1e] border border-[#2a2a2a] rounded-full px-1.5 py-px">Wrote before</span>}
+            </p>
             <p className="text-[10px] text-[#6b6b6b] flex items-center gap-1 flex-wrap">
               <span className="inline-flex items-center gap-1 text-[#9b9b9b]"><ChannelIcon channel={channel} />{channelLabel(channel)}</span>
               <span>· {timeAgo(lead.created_at)} · {fmtDate(lead.created_at)}</span>
@@ -227,11 +236,21 @@ export function LeadCard({
         </div>
       )}
 
+      {(returning || known) && (
+        <div className={`mb-3 flex items-start gap-1.5 text-[11px] rounded-lg px-2.5 py-1.5 border ${returning ? 'text-green-300 bg-green-900/10 border-green-800/30' : 'text-[#9b9b9b] bg-[#1e1e1e] border-[#2a2a2a]'}`}>
+          <Repeat className="w-3 h-3 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-0.5">{returning ? 'They know you' : 'Not their first message'}</p>
+            <p>{historyLine(history)}.{returning ? ' Skip the pitch: confirm the piece and offer dates.' : ' Worth a look at why it did not book last time.'}</p>
+          </div>
+        </div>
+      )}
+
       {toSettle.length > 0 && (
         <div className="mb-3 flex items-start gap-1.5 text-[11px] text-[#e0c878] bg-[#c9a84c]/10 border border-[#c9a84c]/25 rounded-lg px-2.5 py-1.5">
           <HelpCircle className="w-3 h-3 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold mb-0.5">Still to settle before you quote</p>
+            <p className="font-semibold mb-0.5">{returning ? 'Still open on this piece' : 'Still to settle before you quote'}</p>
             <ul className="space-y-0.5">{toSettle.map((t) => <li key={t}>{t}</li>)}</ul>
           </div>
         </div>
@@ -289,6 +308,7 @@ export function LeadCard({
         replyVia={replyRoute({ channel, client_email: email || null, client_phone: phone || null, external_thread_id: lead.external_thread_id })}
         reviewUrlConfigured={reviewUrlConfigured}
         sessionDone={lead.status === 'booked' && isPast(lead.appointment_at)}
+        returning={returning}
         demo={demo}
       />
     </div>

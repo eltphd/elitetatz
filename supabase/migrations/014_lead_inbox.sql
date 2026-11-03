@@ -1,5 +1,5 @@
 -- 014 — Lead inbox: every channel lands in one place (2026-11-03).
--- Applied to production (elitetatz, twyrxtzjictiysxqjmhu) on 2026-11-03 via the Supabase MCP.
+-- Applied to production by Erica in the Supabase SQL editor on 2026-11-03.
 --
 -- A lead is still a row in `matches`. What changes: it now says which channel it
 -- came through, can be matched back to an outside thread (an Instagram

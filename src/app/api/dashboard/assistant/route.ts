@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { artistContext } from '@/lib/artist-session'
-import { ASSISTANT_MODES, MODE_PROMPT, buildLeadContext, systemPrompt, type AssistantMode, type LeadRow, type MsgRow, type NoteRow } from '@/lib/assistant'
+import { ASSISTANT_MODES, modePrompt, buildLeadContext, systemPrompt, type AssistantMode, type LeadRow, type MsgRow, type NoteRow } from '@/lib/assistant'
+import { clientHistory } from '@/lib/client-history'
 import type { AttachmentRow } from '@/lib/attachments'
 
 // Lacey asks the assistant about a lead. Streams the answer as SSE
@@ -41,11 +42,13 @@ export async function POST(req: Request) {
     .single()
   if (!lead) return Response.json({ error: 'Match not found' }, { status: 404 })
 
-  const [{ data: messages }, { data: notes }, { data: attachments }] = await Promise.all([
+  const [{ data: messages }, { data: notes }, { data: attachments }, historyMap] = await Promise.all([
     db.from('match_messages').select('id, sender, body, channel, created_at, meta').eq('match_id', matchId).order('created_at', { ascending: true }),
     db.from('lead_notes').select('id, author, kind, body, created_at').eq('match_id', matchId).order('created_at', { ascending: true }),
     db.from('lead_attachments').select('id, match_id, message_id, storage_path, filename, mime, size_bytes, source, created_at').eq('match_id', matchId).order('created_at', { ascending: true }),
+    clientHistory(db, artist.id, [lead as LeadRow]),
   ])
+  const history = historyMap.get(matchId)
   let transcript: Array<{ role: string; content: string }> | undefined
   if ((lead as LeadRow).conversation_id) {
     const { data: conv } = await db.from('conversations').select('messages').eq('id', (lead as LeadRow).conversation_id).single()
@@ -57,9 +60,10 @@ export async function POST(req: Request) {
     notes: (notes ?? []) as NoteRow[],
     attachments: (attachments ?? []) as AttachmentRow[],
     transcript,
+    history,
   })
 
-  const ask = mode === 'ask' ? question : MODE_PROMPT[mode]
+  const ask = mode === 'ask' ? question : modePrompt(mode, history?.kind === 'returning')
   const content: Anthropic.ContentBlockParam[] = [
     { type: 'text', text: `${context.text}\n\n---\nLACEY ASKS:\n${ask}` },
     ...context.images,

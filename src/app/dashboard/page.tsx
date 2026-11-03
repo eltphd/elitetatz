@@ -1,12 +1,13 @@
 import { artistContext } from '@/lib/artist-session'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, Wallet, Link2, Receipt, Plus } from 'lucide-react'
+import { Sparkles, Clock, CheckCircle, CalendarCheck, MessageCircle, Wallet, Link2, Receipt, Plus, ClipboardCheck } from 'lucide-react'
 import type { ThreadMessage } from '@/components/InquiryThread'
 import { signAttachments, type AttachmentRow } from '@/lib/attachments'
 import { LeadCard, groupOf, type Group, type Lead } from './LeadCard'
 import type { AttachmentView } from './AttachmentGrid'
 import type { NoteView } from './NotesPanel'
+import { clientHistory } from '@/lib/client-history'
 
 // Lacey's inbox. Every channel (website, concierge, email, Instagram,
 // Messenger, text, by hand) lands here as one card with the thread, the
@@ -66,6 +67,11 @@ export default async function DashboardPage() {
     }
   }
 
+  const [history, { count: pendingApprovals }] = await Promise.all([
+    clientHistory(db, artist.id, leads),
+    db.from('approvals').select('id', { count: 'exact', head: true }).eq('artist_id', artist.id).eq('status', 'pending'),
+  ])
+
   const groups: Record<Group, Lead[]> = { needs_you: [], waiting: [], booked: [], closed: [] }
   for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [])].push(lead)
 
@@ -94,6 +100,11 @@ export default async function DashboardPage() {
             <Link href="/dashboard/new" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Plus className="w-3.5 h-3.5" />
               Add a lead
+            </Link>
+            <Link href="/dashboard/approvals" className="flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Approvals</span>
+              {(pendingApprovals ?? 0) > 0 && <span className="ml-0.5 text-[10px] font-bold bg-[#c9a84c] text-black rounded-full px-1.5 leading-4">{pendingApprovals}</span>}
             </Link>
             <Link href="/dashboard/payouts" className="hidden sm:flex items-center gap-1 text-xs text-[#c9a84c] font-medium">
               <Wallet className="w-3.5 h-3.5" />
@@ -160,6 +171,7 @@ export default async function DashboardPage() {
                     attachments={files.get(lead.id) ?? []}
                     notes={notes.get(lead.id) ?? []}
                     reviewUrlConfigured={reviewUrlConfigured}
+                    history={history.get(lead.id)}
                   />
                 ))}
               </div>
