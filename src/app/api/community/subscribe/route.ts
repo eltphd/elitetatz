@@ -121,7 +121,7 @@ export async function POST(req: Request) {
   const alreadyWelcomed = Boolean(existing?.welcome_sent_at)
   const unsubscribed = Boolean(existing?.unsubscribed_at)
   if (!alreadyWelcomed && !unsubscribed) {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.vercel.app'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.app'
     const welcome = buildWelcomeEmail({
       artistName: 'Lacey Rawson',
       artistHandle: artistHandle === 'rawsunart' ? 'RawSunArt' : artistHandle,

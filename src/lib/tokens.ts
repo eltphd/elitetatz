@@ -110,7 +110,7 @@ export function hashIp(ip: string): string | null {
 }
 
 export function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.vercel.app').replace(/\/$/, '')
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'https://elitetatz.app').replace(/\/$/, '')
 }
 
 export function inquiryUrl(matchId: string): string {
