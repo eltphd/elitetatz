@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Sparkles, Clock, CheckCircle, CalendarCheck, Eye } from 'lucide-react'
 import type { ThreadMessage } from '@/components/InquiryThread'
@@ -167,6 +168,9 @@ const NOTES: Record<string, NoteView[]> = {
 }
 
 export default function DemoInboxPage() {
+  // Demo data must never be mistaken for Lacey's own (Erica, Nov 3, 2026). Hidden in production unless SHOW_DEMO=1.
+  if (process.env.NODE_ENV === 'production' && process.env.SHOW_DEMO !== '1') notFound()
+
   const groups: Record<Group, Lead[]> = { needs_you: [], waiting: [], booked: [], closed: [] }
   for (const lead of LEADS) groups[groupOf(lead, THREADS[lead.id] ?? [])].push(lead)
   const sections: { key: Group; title: string; hint?: string; pulse?: boolean }[] = [

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   title: 'EliteTatz — Find Your Artist',
   description: 'AI-powered tattoo matching. Tell us your vision, we find your artist.',
   manifest: '/manifest.webmanifest',
-  icons: { apple: '/icon-180.png', icon: '/icon-192.png' },
+  icons: { apple: '/icon-180.png', icon: [{ url: '/favicon-32.png', sizes: '32x32', type: 'image/png' }, { url: '/icon-192.png', sizes: '192x192', type: 'image/png' }] },
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'RawSunArt Inbox' },
 }
 

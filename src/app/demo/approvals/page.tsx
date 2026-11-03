@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { Eye } from 'lucide-react'
 import { ApprovalsView } from '@/app/dashboard/approvals/ApprovalsView'
 import type { ApprovalView } from '@/lib/approvals'
@@ -51,6 +52,9 @@ const ITEMS: ApprovalView[] = [
 ]
 
 export default async function DemoApprovalsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  // Demo data must never be mistaken for Lacey's own (Erica, Nov 3, 2026). Hidden in production unless SHOW_DEMO=1.
+  if (process.env.NODE_ENV === 'production' && process.env.SHOW_DEMO !== '1') notFound()
+
   const { tab } = await searchParams
   return (
     <>
