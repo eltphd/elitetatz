@@ -4,6 +4,7 @@ import { artistForInbound } from '@/lib/channels'
 import { checkAbuse } from '@/lib/rate-limit'
 import { notifyArtist } from '@/lib/notify'
 import { isKind } from '@/lib/approvals'
+import { appUrl } from '@/lib/tokens'
 
 // The operator's door to the approvals queue. A script (or Erica, by curl)
 // submits a rendered email or blog post for Lacey to read and decide on, and
@@ -70,12 +71,15 @@ export async function POST(req: Request) {
   const { data, error } = await db.from('approvals').upsert(row, { onConflict: 'artist_id,key' }).select('id, status').single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
+  // appUrl() always yields a full https link: a missing NEXT_PUBLIC_APP_URL
+  // once produced a bare "/dashboard/approvals" in her email.
+  const link = `${appUrl()}/dashboard/approvals`
   await notifyArtist({
     kind: 'approval',
     ref: data.id,
     subject: `Waiting for your okay: ${title}`,
-    text: `${kind === 'email_campaign' ? 'An email to your list' : 'A blog post'} is waiting for your okay in the inbox. Nothing goes out until you tap Approve.\n\n${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/approvals`,
-    sms: `Something is waiting for your okay in the inbox: ${title}. Nothing goes out until you approve it.`,
+    text: `${kind === 'email_campaign' ? 'An email to your list' : 'A blog post'} is waiting for your okay in the inbox. Nothing goes out until you tap Approve.\n\n${link}`,
+    sms: `Waiting for your okay in the inbox: ${title}. Nothing goes out until you approve it. ${link}`,
   })
   return Response.json({ ok: true, id: data.id, status: data.status })
 }

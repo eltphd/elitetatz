@@ -90,6 +90,9 @@ export async function POST(req: Request) {
     client_name: clientName,
     client_email: clientEmail,
     source: 'rawsunart-form',
+    // utm_source on the first page of the visit (rawsunart.com sets it), so a
+    // Reconnect-driven inquiry reads "reconnect1" on the card as well as in the counts.
+    found_via: foundVia,
   }
 
   const { data: match, error: matchErr } = await db
