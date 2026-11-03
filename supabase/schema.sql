@@ -1,7 +1,7 @@
 -- EliteTatz — production schema snapshot (public schema).
 --
 -- Generated 2026-11-03 from the live catalog of project twyrxtzjictiysxqjmhu
--- after migration 014 (lead inbox). This is a reference, not the source of truth: change the
+-- after migration 015 (approvals). This is a reference, not the source of truth: change the
 -- database only through a new file in supabase/migrations/, then regenerate
 -- this snapshot. Tables are ordered so every foreign key target exists first.
 --
@@ -399,6 +399,34 @@ create table inbound_events (
 alter table inbound_events enable row level security;
 
 -- Storage (migration 014): bucket lead-files, private, 25 MB per file, read through signed URLs only.
+
+-- approvals (migration 015): her okay before an email campaign or blog post goes out
+create table approvals (
+  id uuid default gen_random_uuid() not null,
+  artist_id uuid not null,
+  kind text not null,
+  key text not null,
+  title text not null,
+  summary text,
+  subject text,
+  body_html text,
+  body_text text,
+  audience text,
+  audience_count integer,
+  status text default 'pending'::text not null,
+  artist_notes text,
+  decided_at timestamp with time zone,
+  submitted_by text default 'operator'::text not null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone default now() not null,
+  constraint approvals_pkey PRIMARY KEY (id),
+  constraint approvals_artist_id_key_key UNIQUE (artist_id, key),
+  constraint approvals_kind_check CHECK ((kind = ANY (ARRAY['email_campaign'::text, 'blog_post'::text]))),
+  constraint approvals_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'changes_requested'::text, 'withdrawn'::text, 'sent'::text, 'published'::text]))),
+  constraint approvals_artist_id_fkey FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
+);
+CREATE INDEX approvals_artist_status_idx ON public.approvals USING btree (artist_id, status, created_at DESC);
+alter table approvals enable row level security;
 
 -- reviews
 create table reviews (
