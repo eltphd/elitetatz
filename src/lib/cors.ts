@@ -6,6 +6,8 @@ const ALLOWED_ORIGINS = new Set([
   'https://rawsunart.com',
   'https://www.rawsunart.com',
   'https://rawsunart-web.vercel.app',
+  'https://elitetatz.app',
+  'https://www.elitetatz.app',
   'https://elitetatz.vercel.app',
   'http://localhost:3000',
 ])

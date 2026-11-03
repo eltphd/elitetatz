@@ -10,7 +10,7 @@
 //
 //   node scripts/submit-approval.mjs --status rsa-reconnect-1      read her decision back
 //
-// Env: ELITETATZ_URL (default https://elitetatz.vercel.app), OPERATOR_API_KEY (same value as on Vercel).
+// Env: ELITETATZ_URL (default https://elitetatz.app), OPERATOR_API_KEY (same value as on Vercel).
 // Submitting notifies Lacey that something is waiting. It sends nothing to anyone else.
 
 import { readFileSync, existsSync } from 'node:fs'
@@ -23,7 +23,7 @@ if (existsSync('.env.local')) {
 }
 const argv = process.argv.slice(2)
 const opt = (name) => { const i = argv.indexOf(`--${name}`); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null }
-const base = (process.env.ELITETATZ_URL ?? 'https://elitetatz.vercel.app').replace(/\/$/, '')
+const base = (process.env.ELITETATZ_URL ?? 'https://elitetatz.app').replace(/\/$/, '')
 const key = process.env.OPERATOR_API_KEY
 if (!key) { console.error('missing env OPERATOR_API_KEY'); process.exit(2) }
 

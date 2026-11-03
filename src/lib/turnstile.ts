@@ -13,7 +13,7 @@ const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 
 // Pages the widget is allowed to run on. A token minted anywhere else fails,
 // even with the right site key. Override with TURNSTILE_HOSTNAMES (comma list).
-const DEFAULT_HOSTNAMES = ['rawsunart.com', 'www.rawsunart.com', 'elitetatz.vercel.app']
+const DEFAULT_HOSTNAMES = ['rawsunart.com', 'www.rawsunart.com', 'elitetatz.app', 'www.elitetatz.app', 'elitetatz.vercel.app']
 
 function allowedHostnames(): Set<string> {
   const list = (process.env.TURNSTILE_HOSTNAMES ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)
