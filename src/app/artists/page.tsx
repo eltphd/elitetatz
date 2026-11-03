@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import ArtistWaitlistForm from '@/components/ArtistWaitlistForm'
 
 export const metadata: Metadata = {
@@ -44,7 +45,8 @@ export default function ArtistsPage() {
     <div className="min-h-dvh bg-[#0a0a0a] text-[#f5f5f0]">
       <div className="mx-auto max-w-lg px-5 pb-20 pt-10">
         {/* Hero */}
-        <p className="mb-8 text-sm font-semibold uppercase tracking-[0.2em] text-[#c9a84c]">EliteTatz · For Artists</p>
+        <Image src="/logo-wordmark.svg" alt="EliteTatz" width={224} height={42} unoptimized priority className="mb-4 h-auto w-56" />
+        <p className="mb-8 text-sm font-semibold uppercase tracking-[0.2em] text-[#c9a84c]">For Artists</p>
         <h1 className="mb-5 text-4xl font-bold leading-tight">
           You win them at the booth.
           <br />

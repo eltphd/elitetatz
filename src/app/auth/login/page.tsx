@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -166,10 +167,9 @@ export default function LoginPage() {
       </header>
       <main className="flex-1 max-w-lg mx-auto w-full px-4 pt-8 pb-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-1">
-            <span className="gradient-gold">Tatz</span><span className="text-white">AI</span>
-          </h1>
-          <p className="text-sm text-[#6b6b6b]">Welcome back</p>
+          <Image src="/logo-mark.svg" alt="EliteTatz" width={56} height={56} unoptimized priority className="mx-auto mb-3 h-14 w-14" />
+          <h1 className="text-2xl font-bold mb-1">Welcome back</h1>
+          <p className="text-sm text-[#6b6b6b]">Your inbox is where you left it.</p>
         </div>
         <Suspense fallback={<div className="h-64 flex items-center justify-center"><Loader2 className="w-5 h-5 text-[#c9a84c] animate-spin" /></div>}>
           <LoginForm />
