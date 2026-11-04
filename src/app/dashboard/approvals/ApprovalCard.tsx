@@ -112,7 +112,7 @@ export function ApprovalCard({ item, demo = false }: { item: ApprovalView; demo?
       {decidedAt && status !== 'pending' && (
         <p className="text-[11px] text-[#9b9b9b] mb-2">
           You {status === 'approved' ? 'approved this' : status === 'changes_requested' ? 'asked for changes' : status} on {fmt(decidedAt)}.{notes && status === 'changes_requested' ? ` Your notes: “${notes}”` : ''}
-          {status === 'approved' && ' Erica sends it; nothing has gone out yet.'}
+          {status === 'approved' && ' It goes out by itself the next Tuesday to Thursday morning, 40 people at a time, until everyone has it.'}
         </p>
       )}
 

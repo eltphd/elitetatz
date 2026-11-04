@@ -47,7 +47,7 @@ export function ApprovalsView({ items, tab, artistName, basePath, demo = false }
 
         <div className="mb-5 bg-[#141414] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#9b9b9b] leading-relaxed">
           <p className="text-white font-semibold mb-1">How this works</p>
-          <p>Anything that would go out under your name lands here first, exactly as people will see it. Read it, then tap Approve or Ask for changes. Approve is your okay, not a send: Erica sends or publishes it afterwards, and the send refuses to run without your okay on record.</p>
+          <p>Anything that would go out under your name lands here first, exactly as people will see it. Read it, then tap Approve or Ask for changes. Approve is your okay. The send runs by itself afterwards, on its schedule, and refuses to run without your okay on record.</p>
         </div>
 
         {list.length === 0 && (
