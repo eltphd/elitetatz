@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Sparkles, Clock, HelpCircle, CheckCircle, CalendarCheck, XCircle, ShieldCheck } from 'lucide-react'
+import { Sparkles, Clock, HelpCircle, CheckCircle, CalendarCheck, XCircle, ShieldCheck, Eye, Hourglass, Wallet } from 'lucide-react'
 import { verifyMatch } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -84,6 +84,8 @@ export default async function InquiryPage({
     ? briefFollowUps(brief).filter((f) => f.kind === 'open').map((f) => f.text)
     : []
   const scale = str(brief.scale_check)
+  // A first-time client: nothing has happened yet beyond their own words.
+  const firstVisit = match.status === 'pending' && !messages.some((m) => m.sender === 'artist')
 
   return (
     <Shell>
@@ -121,6 +123,8 @@ export default async function InquiryPage({
           </p>
         </div>
       </header>
+
+      {firstVisit && <WhatHappensNext depositExternal={depositLinkFor(matchId).external} />}
 
       <StatusCard
         status={match.status}
@@ -289,6 +293,46 @@ function StatusCard({
         This inquiry is closed. Start a new one any time.
       </Row>
     </div>
+  )
+}
+
+// For a client who has never done this before: who reads it, when they will
+// hear, how the deposit works. Words only, from the artist's own policy;
+// nothing is asked of the client and nothing is stored.
+function WhatHappensNext({ depositExternal }: { depositExternal: boolean }) {
+  const checkout = depositExternal ? `${ARTIST_CONFIG.depositCollectedBy}\u2019s secure checkout` : 'a secure checkout on this page'
+  const items = [
+    {
+      icon: <Eye className="w-4 h-4 text-[#c9a84c]" />,
+      title: `${firstName} reads it herself`,
+      text: `Not a front desk, not a bot. She reads your words and your reference and answers in the thread below.`,
+    },
+    {
+      icon: <Hourglass className="w-4 h-4 text-[#c9a84c]" />,
+      title: 'You hear within two days',
+      text: 'Usually sooner. If it takes longer, a note lands here and in your email saying exactly when, so you are never left guessing.',
+    },
+    {
+      icon: <Wallet className="w-4 h-4 text-[#c9a84c]" />,
+      title: `A ${money(ARTIST_CONFIG.depositCents)} deposit holds your spot`,
+      text: `When she quotes, you get a link to ${checkout}. ${ARTIST_CONFIG.depositPolicy}`,
+    },
+  ]
+  return (
+    <section aria-label="What happens next" className="mb-4 rounded-2xl border border-[#2a2a2a] bg-[#0f0f0f] p-4">
+      <p className="text-[10px] text-[#6b6b6b] uppercase tracking-widest font-medium mb-3">What happens next</p>
+      <ol className="space-y-3">
+        {items.map((it) => (
+          <li key={it.title} className="flex items-start gap-3">
+            <div className="mt-0.5 shrink-0">{it.icon}</div>
+            <div>
+              <p className="text-sm font-semibold mb-0.5">{it.title}</p>
+              <p className="text-xs text-[#9b9b9b] leading-relaxed">{it.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 

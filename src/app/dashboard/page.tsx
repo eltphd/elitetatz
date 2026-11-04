@@ -9,6 +9,9 @@ import { LeadCard, groupOf, type Group, type Lead } from './LeadCard'
 import type { AttachmentView } from './AttachmentGrid'
 import type { NoteView } from './NotesPanel'
 import { clientHistory } from '@/lib/client-history'
+import { walkthroughDismissedAt, walkthroughState } from '@/lib/onboarding'
+import { Walkthrough } from './Walkthrough'
+import { ExampleCard } from './ExampleCard'
 
 // Lacey's inbox. Every channel (website, concierge, email, Instagram,
 // Messenger, text, by hand) lands here as one card with the thread, the
@@ -68,10 +71,13 @@ export default async function DashboardPage() {
     }
   }
 
-  const [history, { count: pendingApprovals }] = await Promise.all([
+  const [history, { count: pendingApprovals }, dismissedAt] = await Promise.all([
     clientHistory(db, artist.id, leads),
     db.from('approvals').select('id', { count: 'exact', head: true }).eq('artist_id', artist.id).eq('status', 'pending'),
+    walkthroughDismissedAt(db, artist.id),
   ])
+  // First visit: the three-step card until she taps "Got it" (stored on her row).
+  const walkthrough = walkthroughState({ leadCount: leads.length, dismissedAt })
 
   const groups: Record<Group, Lead[]> = { needs_you: [], waiting: [], booked: [], closed: [] }
   for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [])].push(lead)
@@ -122,6 +128,8 @@ export default async function DashboardPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 pt-5 pb-16">
+        <Walkthrough initialState={walkthrough} leadCount={leads.length} />
+
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
             { label: 'Needs you', value: groups.needs_you.length, icon: Clock, color: 'text-[#c9a84c]' },
@@ -137,15 +145,18 @@ export default async function DashboardPage() {
         </div>
 
         {leads.length === 0 && (
-          <div className="text-center py-20">
-            <MessageCircle className="w-10 h-10 text-[#6b6b6b] mx-auto mb-4 opacity-40" />
-            <p className="text-sm text-[#6b6b6b] mb-2">No leads yet</p>
-            <p className="text-xs text-[#6b6b6b] mb-5">Share your portfolio link to start getting inquiries, or add one by hand.</p>
-            <div className="flex items-center justify-center gap-4">
-              <Link href="/rawsunart" className="text-[#c9a84c] text-sm font-medium">View your portfolio →</Link>
-              <Link href="/dashboard/new" className="text-[#c9a84c] text-sm font-medium">Add a lead →</Link>
+          <>
+            <div className="text-center py-10">
+              <MessageCircle className="w-10 h-10 text-[#6b6b6b] mx-auto mb-4 opacity-40" />
+              <p className="text-sm text-[#6b6b6b] mb-2">No leads yet</p>
+              <p className="text-xs text-[#6b6b6b] mb-5">Share your portfolio link to start getting inquiries, or add one by hand. Until then, here is what a card looks like.</p>
+              <div className="flex items-center justify-center gap-4">
+                <Link href="/rawsunart" className="text-[#c9a84c] text-sm font-medium">View your portfolio →</Link>
+                <Link href="/dashboard/new" className="text-[#c9a84c] text-sm font-medium">Add a lead →</Link>
+              </div>
             </div>
-          </div>
+            <ExampleCard />
+          </>
         )}
 
         {sections.map(({ key, title, hint, pulse }) => {
