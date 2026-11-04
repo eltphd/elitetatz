@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, CalendarDays, Check, Mail, ShieldCheck, X, Circle, CircleDot, UserRound } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, ShieldCheck, X, Circle, CircleDot, UserRound } from 'lucide-react'
 import { artistContext } from '@/lib/artist-session'
 import { googleConfigured } from '@/lib/google/oauth'
 import { tokenCryptoConfigured } from '@/lib/google/crypto'
@@ -11,14 +11,14 @@ export const dynamic = 'force-dynamic'
 // The checklist of every way a lead can reach the inbox, with the real
 // status of each read from which env vars are set (names only), what it
 // unlocks and who does the step. Below it, where an artist lets the
-// assistant read their Gmail and Calendar, sees what it can and can't do,
+// assistant read their Google Calendar, sees what it can and can't do,
 // and takes the permission back.
 
 const NOTICES: Record<string, string> = {
-  connected: 'Connected. Your assistant can now read your Gmail and Calendar.',
+  connected: 'Connected. Your assistant can now read your Google Calendar.',
   disconnected: 'Disconnected. Access is withdrawn and the saved key is deleted.',
   cancelled: 'Nothing changed. You closed the Google screen before agreeing.',
-  'error=scopes': 'Both boxes need to stay ticked on the Google screen (Gmail and Calendar). Nothing was saved. Try again when you are ready.',
+  'error=scopes': 'The Calendar box needs to stay ticked on the Google screen. Nothing was saved. Try again when you are ready.',
   'error=state': 'That sign-in link expired. Please try again.',
   'error=exchange': 'Google did not finish the connection. Please try again.',
   'error=no_code': 'Google did not finish the connection. Please try again.',
@@ -84,8 +84,8 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
 
         <section id="google" className="rounded-2xl border border-[#2a2a2a] bg-[#141414] p-5 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="flex gap-1.5 text-[#c9a84c]"><Mail className="w-5 h-5" /><CalendarDays className="w-5 h-5" /></div>
-            <h2 className="text-lg font-semibold">Gmail and Google Calendar</h2>
+            <div className="flex gap-1.5 text-[#c9a84c]"><CalendarDays className="w-5 h-5" /></div>
+            <h2 className="text-lg font-semibold">Google Calendar</h2>
           </div>
 
           {conn && !conn.needs_reconnect ? (
@@ -96,20 +96,19 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           ) : conn?.needs_reconnect ? (
             <p className="text-sm text-[#e0c878]">Google stopped this connection (you may have removed it in your Google account). Reconnect to turn it back on.</p>
           ) : (
-            <p className="text-sm text-[#b5b5b5]">Not connected. Your assistant can&apos;t see your email or calendar.</p>
+            <p className="text-sm text-[#b5b5b5]">Not connected. Your assistant can&apos;t see your calendar.</p>
           )}
 
           <div className="space-y-2 text-sm">
             <p className="font-medium">If you connect, your assistant can:</p>
             <ul className="space-y-1.5 text-[#b5b5b5]">
-              <li className="flex gap-2"><Check className="w-4 h-4 mt-0.5 shrink-0 text-[#c9a84c]" />Search your email to find a client&apos;s thread, a reference or a date, when you ask it to</li>
               <li className="flex gap-2"><Check className="w-4 h-4 mt-0.5 shrink-0 text-[#c9a84c]" />See your upcoming calendar so it can tell you when you&apos;re free</li>
             </ul>
             <p className="font-medium pt-2">It can&apos;t, and won&apos;t:</p>
             <ul className="space-y-1.5 text-[#b5b5b5]">
-              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Send, delete, move or change any email or event (read-only)</li>
-              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Share your email, clients or calendar with other artists, the studio or anyone else</li>
-              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Keep copies of your messages. It reads what it needs at the moment you ask.</li>
+              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Add, move or change any event (read-only)</li>
+              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Share your calendar or clients with other artists, the studio or anyone else</li>
+              <li className="flex gap-2"><X className="w-4 h-4 mt-0.5 shrink-0 text-[#6b6b6b]" />Keep copies of your calendar. It reads what it needs at the moment you ask.</li>
             </ul>
           </div>
 
@@ -123,12 +122,12 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
           ) : conn && !conn.needs_reconnect ? (
             <form action="/api/artist/google/disconnect" method="post">
               <button className="w-full rounded-2xl border border-[#2a2a2a] bg-[#1e1e1e] py-3.5 text-sm font-medium hover:border-[#c9a84c]/30">
-                Disconnect Gmail and Calendar
+                Disconnect Google Calendar
               </button>
             </form>
           ) : (
             <a href="/api/artist/google/connect" className="block w-full rounded-2xl bg-[#c9a84c] py-4 text-center text-sm font-bold text-black hover:bg-[#d4b45a]">
-              {conn?.needs_reconnect ? 'Reconnect Google' : 'Connect Gmail and Calendar'}
+              {conn?.needs_reconnect ? 'Reconnect Google' : 'Connect Google Calendar'}
             </a>
           )}
         </section>

@@ -1,28 +1,28 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 
-// Google OAuth for the artist's own Gmail and Calendar, read-only.
+// Google OAuth for the artist's own Google Calendar, read-only.
 //
 // This is deliberately a separate step from signing in. "Continue with
 // Google" on the login page asks Google for identity only (name and email,
-// handled by Supabase Auth). Letting the assistant read mail and calendar is
+// handled by Supabase Auth). Letting the assistant read the calendar is
 // a second, explicit consent on /dashboard/connections, with its own Google
 // consent screen, and it can be withdrawn there at any time.
 
 export const GOOGLE_SCOPES = [
   'openid',
   'email',
-  'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/calendar.readonly',
 ] as const
 
-export const REQUIRED_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/calendar.readonly',
-]
+// Gmail read was dropped on 2026-11-04. Email reaches the inbox through the
+// Resend forward instead, and gmail.readonly is a restricted scope: publishing
+// the consent screen with it needs a paid security assessment. Calendar read
+// is a sensitive scope and publishes with ordinary verification.
+export const REQUIRED_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 // Bump when the consent wording on /dashboard/connections changes. The log
 // records which wording each artist agreed to.
-export const CONSENT_VERSION = '2026-10-06'
+export const CONSENT_VERSION = '2026-11-04'
 
 export const STATE_COOKIE = 'gc_state'
 
