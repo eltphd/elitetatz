@@ -135,7 +135,7 @@ Added 2026-11-03 (loop audit, fix six). A new artist and a new client get told w
 5. **Texts.** Dialpad API: `POST /api/v2/webhooks` with `hook_url` and a `secret`, then `POST /api/v2/subscriptions/sms` on that webhook, `direction: inbound`, target the studio line. The secret → `DIALPAD_WEBHOOK_SECRET`.
 6. **Reviews.** The Google Business "write a review" short link → `GOOGLE_REVIEW_URL`.
 7. **Home screen.** On Lacey's phone: open `/dashboard`. The walkthrough card shows the gesture for her phone; the printed version is Share → Add to Home Screen.
-8. **Apply migration 017** (`supabase/migrations/017_walkthrough.sql`) and regenerate `supabase/schema.sql`. Until it is applied the walkthrough shows on every visit and "Got it" answers with an error; nothing else is affected.
+8. ~~Apply migration 017~~ applied to production 2026-11-03 (`017_walkthrough` in the migrations list); `supabase/schema.sql` updated.
 
 ## What to watch
 
