@@ -8,12 +8,13 @@ describe('safeNext', () => {
 
   it('refuses anything that leaves the site', () => {
     for (const bad of ['//evil.com', '/\\evil.com', 'https://evil.com', '@evil.com', 'evil.com', '/\tevil']) {
-      expect(safeNext(bad)).toBe('/')
+      expect(safeNext(bad)).toBe('/dashboard')
     }
   })
 
-  it('falls back when empty', () => {
-    expect(safeNext(null)).toBe('/')
-    expect(safeNext('', '/dashboard')).toBe('/dashboard')
+  it('falls back to the inbox when empty, never the public page', () => {
+    expect(safeNext(null)).toBe('/dashboard')
+    expect(safeNext('')).toBe('/dashboard')
+    expect(safeNext('', '/auth/update-password')).toBe('/auth/update-password')
   })
 })

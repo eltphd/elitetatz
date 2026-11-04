@@ -13,9 +13,9 @@ function supabaseConfigured(): boolean {
 
 const SINGLE_ARTIST_HOME = '/rawsunart'
 
-// Exact paths that belonged to the marketplace.
+// Exact paths that belonged to the marketplace. "/" is not here: it is handled
+// below once the session is known (artist → inbox, anyone else → Lacey's page).
 const RETIRED_PATHS = new Set([
-  '/',
   '/explore',
   '/flash',
   '/vault',
@@ -84,6 +84,12 @@ export async function proxy(request: NextRequest) {
 
     // Refresh session if expired
     const { data: { user } } = await supabase.auth.getUser()
+
+    // A signed-in artist opening the bare domain wants her inbox, not the
+    // client-facing page. Everyone else is sent on by src/app/page.tsx.
+    if (pathname === '/' && user) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
 
     // Protect /dashboard — artist only
     if (pathname.startsWith('/dashboard') && !user) {
