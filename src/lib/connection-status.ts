@@ -79,8 +79,8 @@ const SPECS: Spec[] = [
   },
   {
     key: 'google',
-    label: 'Gmail and Google Calendar',
-    unlocks: 'The assistant can find a client’s thread or a date in your email and tell you when you are free. Read-only.',
+    label: 'Google Calendar',
+    unlocks: 'The assistant can see your upcoming calendar and tell you when you are free. Read-only. Email reaches the inbox through the forward above, not through Google.',
     who: 'Erica switches it on; you tap Connect below and say yes to Google once.',
     artistLogsIn: true,
     env: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_TOKEN_KEY'],

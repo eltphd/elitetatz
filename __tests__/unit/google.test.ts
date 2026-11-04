@@ -47,22 +47,21 @@ describe('google oauth state and scopes', () => {
     expect(verifyState(null, nonce, 'artist-a')).toBe(false)
   })
 
-  it('asks Google for read-only Gmail and Calendar, offline, with a consent screen', async () => {
+  it('asks Google for read-only Calendar only, offline, with a consent screen', async () => {
     const { authUrl } = await import('@/lib/google/oauth')
     const u = new URL(authUrl({ origin: 'https://elitetatz.vercel.app', state: 's', loginHint: 'lacey@rawsunart.com' }))
     const scope = u.searchParams.get('scope') ?? ''
-    expect(scope).toContain('gmail.readonly')
     expect(scope).toContain('calendar.readonly')
-    expect(scope).not.toMatch(/gmail\.(send|modify|compose)|auth\/calendar(\s|$)|calendar\.events(\s|$)/)
+    expect(scope).not.toMatch(/gmail\.|auth\/calendar(\s|$)|calendar\.events(\s|$)/)
     expect(u.searchParams.get('access_type')).toBe('offline')
     expect(u.searchParams.get('prompt')).toBe('consent')
     expect(u.searchParams.get('redirect_uri')).toBe('https://elitetatz.vercel.app/api/artist/google/callback')
   })
 
-  it('flags a consent where the artist unticked Gmail or Calendar', async () => {
+  it('flags a consent where the artist unticked Calendar', async () => {
     const { missingScopes } = await import('@/lib/google/oauth')
-    expect(missingScopes('openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly')).toEqual([])
-    expect(missingScopes('openid email https://www.googleapis.com/auth/gmail.readonly')).toEqual(['https://www.googleapis.com/auth/calendar.readonly'])
+    expect(missingScopes('openid email https://www.googleapis.com/auth/calendar.readonly')).toEqual([])
+    expect(missingScopes('openid email')).toEqual(['https://www.googleapis.com/auth/calendar.readonly'])
   })
 
   it('reads the account email from the id token', async () => {
