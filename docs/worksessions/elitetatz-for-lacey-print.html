@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EliteTatz for Lacey</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  @page { size: letter; margin: 0.45in 0.5in; }
+  :root { --ink:#15130f; --muted:#5e5a52; --gold:#9a7a1f; --line:#d9d3c4; --card:#faf7f0; --bg:#ffffff; --display:"Fraunces",Georgia,serif; --body:"DM Sans",system-ui,sans-serif; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--body); font-size:11.5px; line-height:1.35; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  h1,h2,h3 { font-family:var(--display); font-weight:700; margin:0; line-height:1.1; }
+  h1 { font-size:26px; }
+  h2 { font-size:15px; margin-bottom:8px; }
+  .page { page-break-after:always; display:grid; gap:10px; }
+  .page:last-child { page-break-after:auto; }
+  .eyebrow { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); font-weight:700; }
+  .lede { font-size:13px; color:var(--muted); margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:11px 13px; break-inside:avoid; }
+  .flow { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .step { display:grid; gap:4px; justify-items:center; text-align:center; padding:8px 6px; border-radius:8px; border:1px solid var(--line); background:#fff; position:relative; }
+  .step + .step::before { content:"→"; position:absolute; left:-11px; top:38%; color:var(--gold); font-weight:700; }
+  .step strong { font-size:11.5px; }
+  .step span { font-size:10px; color:var(--muted); }
+  .ico { width:22px; height:22px; stroke:var(--gold); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .taps { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin-top:8px; }
+  .tap { font-size:10px; font-weight:700; padding:4px 9px; border-radius:999px; background:var(--ink); color:#fff; }
+  .tap.ghost { background:#fff; color:var(--ink); border:1px solid var(--ink); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fact { display:grid; grid-template-columns:22px 1fr; gap:8px; align-items:start; padding:6px 0; border-top:1px solid var(--line); }
+  .fact:first-of-type { border-top:0; padding-top:0; }
+  .fact p { margin:0; display:grid; gap:1px; }
+  .fact b { font-size:11.5px; }
+  .fact span { font-size:10.5px; color:var(--muted); }
+  .timeline { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px; }
+  .t { display:grid; gap:3px; justify-items:center; text-align:center; font-size:10px; }
+  .t b { font-size:10.5px; }
+  .t span { color:var(--muted); }
+  .dot { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--ink); color:#fff; font-weight:700; font-size:10px; }
+  .dot.e { background:var(--gold); }
+  .quiet { font-size:10.5px; color:var(--muted); text-align:center; margin:6px 0 0; }
+  .habits { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .habit { display:grid; gap:4px; justify-items:center; text-align:center; padding:9px 7px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+  .habit b { font-size:11.5px; }
+  .habit span { font-size:10px; color:var(--muted); }
+  .pill { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:5px; background:var(--ink); color:#fff; }
+  .pill.off { background:#fff; color:var(--muted); border:1px solid var(--line); }
+  .foot { font-size:10px; color:var(--muted); text-align:center; margin:2px 0 0; }
+  /* page 2 */
+  .screen { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .mock { border:1px solid var(--line); border-radius:8px; background:#fff; padding:9px 10px; display:grid; gap:6px; }
+  .mock .bar { height:7px; border-radius:4px; background:var(--line); }
+  .mock .bar.short { width:55%; }
+  .mock .label { font-size:10px; color:var(--muted); }
+  .mock .title { font-family:var(--display); font-weight:700; font-size:12.5px; }
+  .mock .btn { justify-self:start; font-size:10px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--gold); color:#fff; }
+  ol.test { margin:0; padding-left:18px; display:grid; gap:5px; }
+  ol.test li { padding-left:2px; }
+  ol.test b { font-weight:700; }
+  ol.test small { display:block; color:var(--muted); font-size:10.5px; }
+  .chan { width:100%; border-collapse:collapse; font-size:10.5px; }
+  .chan th { text-align:left; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); padding:0 6px 4px 0; border-bottom:1px solid var(--line); }
+  .chan td { padding:4px 6px 4px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  .chan tr:last-child td { border-bottom:0; }
+</style>
+</head>
+<body>
+
+<!-- PAGE 1: the one-pager -->
+<div class="page">
+  <header style="display:grid;gap:4px">
+    <p class="eyebrow">EliteTatz · for Lacey · November 2026</p>
+    <h1>One inbox for everyone who wants a tattoo from you.</h1>
+    <p class="lede">The admin runs itself. The art, the quotes and every word to a client stay yours.</p>
+  </header>
+
+  <section class="card">
+    <h2>How a tattoo inquiry reaches you</h2>
+    <div class="flow">
+      <div class="step">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3,7 12,13 21,7"/></svg>
+        <strong>Someone writes in</strong>
+        <span>rawsunart.com form, the concierge chat, or a card you add yourself</span>
+      </div>
+      <div class="step">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="12" x2="13" y2="12"/></svg>
+        <strong>The brief gets built</strong>
+        <span>what, where, size, budget, references, dates</span>
+      </div>
+      <div class="step">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>
+        <strong>It lands in your inbox</strong>
+        <span>and an email tells you a card is waiting</span>
+      </div>
+      <div class="step">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M8 13l3 3 5-7"/><circle cx="12" cy="12" r="9"/></svg>
+        <strong>You tap one thing</strong>
+        <span>every card ends with a tap</span>
+      </div>
+    </div>
+    <div class="taps"><span class="tap">Quote</span><span class="tap">Ask</span><span class="tap">Reply</span><span class="tap ghost">Pass</span><span class="tap ghost">Deposit received</span></div>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>Who is talking to them</h2>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <p><b>The concierge, on the chat page only.</b><span>It introduces itself as your booking assistant. It knows your rate, your $100 deposit, your no-sketch rule, and asks your questions one or two at a time.</span></p>
+      </div>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><circle cx="8" cy="15" r="1.5"/></svg>
+        <p><b>Everything else is you.</b><span>Emails and texts to a client go out only when you tap. The assistant on a card drafts; it cannot send.</span></p>
+      </div>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg>
+        <p><b>You can read every word.</b><span>Each card has a “Concierge transcript” you can open, then the live thread with the client.</span></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Nothing slips</h2>
+      <p style="margin:0;font-size:10.5px;color:var(--muted)">If a card sits, the system speaks first so no client waits in silence.</p>
+      <div class="timeline">
+        <div class="t"><div class="dot">0h</div><b>You get an email</b><span>new card</span></div>
+        <div class="t"><div class="dot">36h</div><b>Client is reassured</b><span>“still with Lacey, by Thursday” + you get a nudge</span></div>
+        <div class="t"><div class="dot e">72h</div><b>Again, and Erica</b><span>second nudge, Erica copied</span></div>
+        <div class="t"><div class="dot">14d</div><b>Told once</b><span>nothing is ever closed for you</span></div>
+      </div>
+      <p class="quiet">Quiet hours 8 pm to 9 am. Nothing fires at night.</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0">Reconnect: the 197 you kept</h2><span class="pill">waits for your tap</span></div>
+    <div class="two" style="margin-top:6px">
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-7-4.5-7-10a7 7 0 0 1 14 0c0 5.5-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
+        <p><b>One email: “I’m at AION in Dublin now.”</b><span>To the people you reviewed on October 16. No store, no cards, no one you excluded.</span></p>
+      </div>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+        <p><b>Approve once, in the Approvals tab.</b><span>Then it goes by itself, 40 at a time, Tuesday to Thursday mornings, until everyone has it.</span></p>
+      </div>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg>
+        <p><b>They get two buttons.</b><span>“Keep me on the list” or “Take me off.” Anyone who taps nothing never hears from you again.</span></p>
+      </div>
+      <div class="fact">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3,4 3,9 8,9"/></svg>
+        <p><b>Replies come back as Returning cards.</b><span>The card shows they were on your list and when you last saw them. Their new piece is collected fresh.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Your three habits</h2>
+    <div class="habits">
+      <div class="habit">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+        <b>Put it on your home screen</b>
+        <span>elitetatz.app → Share → Add to Home Screen. It opens like an app.</span>
+      </div>
+      <div class="habit">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M8 13l3 3 5-7"/><circle cx="12" cy="12" r="9"/></svg>
+        <b>Tap something on every card</b>
+        <span>Quote, ask, reply or pass. A pass is a kindness; silence is not.</span>
+      </div>
+      <div class="habit">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <b>Tap “Deposit received”</b>
+        <span>when AION takes the deposit. That is what tells the client their spot is held.</span>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">elitetatz.app · your private studio inbox · questions go to Erica</p>
+</div>
+
+<!-- PAGE 2: first visit + test script -->
+<div class="page">
+  <header style="display:grid;gap:4px">
+    <p class="eyebrow">EliteTatz · for Lacey · your first 15 minutes</p>
+    <h1>What you’ll see, and how to test it.</h1>
+    <p class="lede">Your inbox starts empty on purpose. Here is what the blank screen shows, then a short test you can run from your phone.</p>
+  </header>
+
+  <section class="card">
+    <h2>What the first screen looks like when there are no leads yet</h2>
+    <div class="screen">
+      <div class="mock">
+        <span class="label">Getting started</span>
+        <span class="title">Three things, then it runs itself.</span>
+        <div class="bar"></div>
+        <div class="bar short"></div>
+        <span class="label">1 · Home screen &nbsp; 2 · One card, five taps &nbsp; 3 · Nothing slips</span>
+        <span class="btn">Got it</span>
+      </div>
+      <div class="mock">
+        <span class="label">Example · what a card looks like</span>
+        <span class="title">Watercolor peony on the outer forearm, about 4 inches</span>
+        <div class="bar"></div>
+        <div class="bar short"></div>
+        <span class="label">Brief · transcript · thread · the five taps, all greyed. It is a sample, not a client.</span>
+      </div>
+    </div>
+    <p class="quiet" style="text-align:left">Tap “Got it” once and the walkthrough stays away on every phone. Tap “Show again” in the corner if you ever want it back. Two more tabs: <b>Approvals</b> holds the Reconnect email waiting for your okay. <b>Connections</b> shows what is switched on.</p>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>The test, step by step</h2>
+      <ol class="test">
+        <li><b>Sign in</b> at elitetatz.app with Google or the email link.<small>Then Share → Add to Home Screen.</small></li>
+        <li><b>Read the walkthrough</b>, tap Got it.<small>Open the example card to see the brief, the transcript and the taps.</small></li>
+        <li><b>Connections</b> → Connect Google Calendar.<small>Google shows “this app isn’t verified” while Erica’s verification is pending. Tap Advanced, then continue. Read-only; it only reads your calendar when you look.</small></li>
+        <li><b>Be a client.</b> On your phone, open rawsunart.com and tap “New idea? Let my concierge shape it with you.” Ask for a small piece, answer its questions, give a personal email that is not lacey@rawsunart.com.<small>You will get the client’s “your inquiry is in” email there, and your artist email at lacey@.</small></li>
+        <li><b>Open the new card.</b> Read the transcript. Tap the assistant for a draft. Tap <b>Ask</b> or <b>Reply</b> and send one line.<small>Check the client address: your line arrived with a link to the inquiry page.</small></li>
+        <li><b>Reply as the client</b> from that inquiry page. Watch it land on the thread.</li>
+        <li><b>Quote</b> it, then tap <b>Deposit received</b>, then <b>Confirm date</b>.<small>Each tap changes what the client sees on their page.</small></li>
+        <li><b>Fill the inquiry form</b> on rawsunart.com once too. Same card, no chat.</li>
+        <li><b>Pass</b> on both test cards when you are done.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>Which doors are open today</h2>
+      <table class="chan">
+        <tr><th>A client reaches you by</th><th>Lands in your inbox</th></tr>
+        <tr><td>rawsunart.com inquiry form</td><td><span class="pill">now</span></td></tr>
+        <tr><td>The concierge chat (the “New idea?” button on rawsunart.com)</td><td><span class="pill">now</span></td></tr>
+        <tr><td>A card you add yourself (walk-in, phone call, IG DM you copy over)</td><td><span class="pill">now</span></td></tr>
+        <tr><td>Reconnect replies (after your Approve)</td><td><span class="pill">now</span></td></tr>
+        <tr><td>Email to lacey@rawsunart.com</td><td><span class="pill off">soon</span> Erica connects the forward with you</td></tr>
+        <tr><td>Text message</td><td><span class="pill off">soon</span> once Dialpad is linked</td></tr>
+        <tr><td>Instagram and Messenger DMs</td><td><span class="pill off">later</span></td></tr>
+      </table>
+      <p class="quiet" style="text-align:left;margin-top:8px">Until the “soon” rows are on, keep doing what you do in Gmail, Instagram and texts. The inbox is a second copy, not a replacement, and nothing you do there is lost. Google Calendar is read-only and is never a source of leads.</p>
+      <p class="quiet" style="text-align:left"><b>Nothing on this list sends an email in your name without your tap.</b> The chat receipt, the gentle reminders when a card sits, and the Reconnect email you approve are the only automatic ones.</p>
+    </section>
+  </div>
+
+  <p class="foot">Stuck? Text Erica. Every screen has a way back, and nothing you tap during the test reaches a real client.</p>
+</div>
+
+</body>
+</html>
