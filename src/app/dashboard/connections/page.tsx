@@ -114,7 +114,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
 
           <p className="flex gap-2 text-xs text-[#8a8a8a]">
             <ShieldCheck className="w-4 h-4 shrink-0 text-[#c9a84c]" />
-            Your clients are yours. Turn this off any time here, or in your Google account under Security → Third-party connections. Turning it off deletes the saved key straight away.
+            Your clients are yours. Turn this off any time here, or in your Google account under Security → Third-party connections. Turning it off deletes the saved key straight away. <a href="/privacy" className="underline underline-offset-2">Privacy policy</a>.
           </p>
 
           {!available ? (
