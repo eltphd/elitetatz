@@ -102,6 +102,20 @@ Env: `CRON_SECRET` (Vercel sets the bearer on the cron call; without it the rout
 
 All of them go in **Vercel → elitetatz → Settings → Environment Variables**, scope Production (and Preview if you want preview deploys to work), then redeploy. Nothing is set in Supabase: it only takes the migrations. Chatwoot, Resend and Dialpad each hold their own side of the handshake (the webhook URL pointing at the app, and the secret you copy into Vercel). The operator's `.env.local` in woopsi-ink needs `OPERATOR_API_KEY` and `ELITETATZ_URL` for the submit step, next to the Supabase and Resend values it already has.
 
+## Onboarding: no paper instructions
+
+Added 2026-11-03 (loop audit, fix six). A new artist and a new client get told what to do by the app itself.
+
+**Artist, first visit to `/dashboard`.** A three-step card sits at the top until she taps "Got it": put it on your home screen (the page reads the phone and shows the Safari Share gesture on an iPhone or iPad, the three-dot menu on Android, both on anything else, and "already done" when it is opened from the icon); one card, five taps (Quote is the Accept button, Ask is More info, Reply is the box under the thread, Pass, Deposit received); nothing slips (the 36 h / 72 h / 14 d holds and the 8 pm to 9 am quiet hours). The tap writes `artists.walkthrough_dismissed_at` (migration 017) through `POST /api/dashboard/walkthrough`, so it holds across phones; nothing is kept in the browser. Dismissed with no leads yet, the card folds to one line with "Show again" (`{ dismissed: false }` clears the timestamp); dismissed once a lead exists, it is gone. Logic: `src/lib/onboarding.ts`; card: `src/app/dashboard/Walkthrough.tsx`.
+
+**Artist, zero leads.** Under the empty-inbox note, one card marked "Example" (`src/app/dashboard/ExampleCard.tsx`) shows a made-up Instagram inquiry with the five taps live. It is rendered with the card's demo switch: every button answers on the page, no request is made, nothing is written and nothing is sent. It is one card inside her own inbox, not a demo page; `/demo/*` stays off in production.
+
+**Artist, `/dashboard/connections`.** A checklist of the seven connections (web form, concierge, email receiving, Instagram and Messenger, texts, Gmail and Calendar, Google Business review link), each with its real status read on the server from which env vars are set (`src/lib/connection-status.ts`: names only, a value never reaches the page), one line on what it unlocks, and who does the step. The web form is always on. Instagram and Google are the two where Lacey logs in once; Erica sets the rest. A channel that is off lists the variable names it waits on, which is the same gate the route enforces (trust rule 7). The Google row has a second half: "Ready for your tap" when the server is set and she has not yet said yes to Google.
+
+**Client, `/inquiry/<id>` on the first visit.** While the inquiry is pending and Lacey has not written yet, a "What happens next" strip sits above the status: she reads it herself; they hear within two days, or a note tells them when (the A1 hold); the deposit goes to AION's checkout and the policy is `ARTIST_CONFIG.depositPolicy` word for word. It collects nothing and stores nothing.
+
+**Trust rules, unchanged.** The walkthrough and the checklist send nothing. The example card cannot write. The client strip reads only what the page already had.
+
 ## Trust rules (what the system will not do)
 
 1. **No automatic replies to clients.** Inbound adapters write to the database and notify Lacey. The only paths that write to a client are her buttons and her reply box.
@@ -120,7 +134,8 @@ All of them go in **Vercel → elitetatz → Settings → Environment Variables*
 4. **Instagram and Messenger.** Chatwoot account (cloud) → Inboxes → add Instagram (needs the Instagram Business account linked to the Facebook Page; Lacey logs in once) and Facebook Page. Settings → Integrations → Webhooks → `https://<app>/api/inbound/chatwoot?key=<long random>` with `message_created`. Profile → Access Token → `CHATWOOT_API_TOKEN`; the account id is in the URL → `CHATWOOT_ACCOUNT_ID`; `CHATWOOT_URL=https://app.chatwoot.com`; the random key → `CHATWOOT_WEBHOOK_SECRET`. Send one DM from another account.
 5. **Texts.** Dialpad API: `POST /api/v2/webhooks` with `hook_url` and a `secret`, then `POST /api/v2/subscriptions/sms` on that webhook, `direction: inbound`, target the studio line. The secret → `DIALPAD_WEBHOOK_SECRET`.
 6. **Reviews.** The Google Business "write a review" short link → `GOOGLE_REVIEW_URL`.
-7. **Home screen.** On Lacey's phone: open `/dashboard`, Share → Add to Home Screen.
+7. **Home screen.** On Lacey's phone: open `/dashboard`. The walkthrough card shows the gesture for her phone; the printed version is Share → Add to Home Screen.
+8. **Apply migration 017** (`supabase/migrations/017_walkthrough.sql`) and regenerate `supabase/schema.sql`. Until it is applied the walkthrough shows on every visit and "Got it" answers with an error; nothing else is affected.
 
 ## What to watch
 

@@ -1,14 +1,18 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, CalendarDays, Check, Mail, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Check, Mail, ShieldCheck, X, Circle, CircleDot, UserRound } from 'lucide-react'
 import { artistContext } from '@/lib/artist-session'
 import { googleConfigured } from '@/lib/google/oauth'
 import { tokenCryptoConfigured } from '@/lib/google/crypto'
+import { connectionRows, connectionSummary, type ConnectionRow } from '@/lib/connection-status'
 
 export const dynamic = 'force-dynamic'
 
-// Where an artist lets the assistant read their Gmail and Calendar, sees
-// what it can and can't do, and takes the permission back.
+// The checklist of every way a lead can reach the inbox, with the real
+// status of each read from which env vars are set (names only), what it
+// unlocks and who does the step. Below it, where an artist lets the
+// assistant read their Gmail and Calendar, sees what it can and can't do,
+// and takes the permission back.
 
 const NOTICES: Record<string, string> = {
   connected: 'Connected. Your assistant can now read your Gmail and Calendar.',
@@ -42,6 +46,9 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
     .maybeSingle()
 
   const available = googleConfigured() && tokenCryptoConfigured()
+  const googleConnected = Boolean(conn && !conn.needs_reconnect)
+  const rows = connectionRows()
+  const summary = connectionSummary(rows)
 
   return (
     <div className="min-h-dvh bg-[#0a0a0a] text-white">
@@ -60,9 +67,25 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
         )}
 
         <section className="rounded-2xl border border-[#2a2a2a] bg-[#141414] p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-semibold">Where leads come from</h1>
+              <p className="text-xs text-[#9b9b9b] mt-1">A channel that is not connected does not exist yet: nothing from it reaches the inbox, and nothing is lost either.</p>
+            </div>
+            <span className="shrink-0 text-xs font-semibold text-[#c9a84c] bg-[#c9a84c]/10 border border-[#c9a84c]/30 rounded-full px-2.5 py-1">{summary.connected} of {summary.total}</span>
+          </div>
+          <ul className="divide-y divide-[#2a2a2a]">
+            {rows.map((row) => (
+              <ChannelRow key={row.key} row={row} googleConnected={googleConnected} />
+            ))}
+          </ul>
+          <p className="text-[11px] text-[#6b6b6b]">Status is read from which settings are in place on the server, by name. No key or password is shown here or anywhere else.</p>
+        </section>
+
+        <section id="google" className="rounded-2xl border border-[#2a2a2a] bg-[#141414] p-5 space-y-4">
           <div className="flex items-center gap-3">
             <div className="flex gap-1.5 text-[#c9a84c]"><Mail className="w-5 h-5" /><CalendarDays className="w-5 h-5" /></div>
-            <h1 className="text-lg font-semibold">Gmail and Google Calendar</h1>
+            <h2 className="text-lg font-semibold">Gmail and Google Calendar</h2>
           </div>
 
           {conn && !conn.needs_reconnect ? (
@@ -111,5 +134,35 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
         </section>
       </main>
     </div>
+  )
+}
+
+function ChannelRow({ row, googleConnected }: { row: ConnectionRow; googleConnected: boolean }) {
+  // The Google row has a second half: the server can be ready and she has not said yes yet.
+  const googleReady = row.key === 'google' && row.status === 'on' && !googleConnected
+  const state: 'on' | 'always' | 'ready' | 'off' = googleReady ? 'ready' : row.status
+  const pill = {
+    always: { label: 'Always on', cls: 'text-[#c9a84c] border-[#c9a84c]/30 bg-[#c9a84c]/10', icon: <CircleDot className="w-3 h-3" /> },
+    on: { label: 'Connected', cls: 'text-green-400 border-green-800/40 bg-green-900/10', icon: <Check className="w-3 h-3" /> },
+    ready: { label: 'Ready for your tap', cls: 'text-[#e0c878] border-[#c9a84c]/30 bg-[#c9a84c]/10', icon: <CircleDot className="w-3 h-3" /> },
+    off: { label: 'Not yet', cls: 'text-[#6b6b6b] border-[#2a2a2a] bg-[#1e1e1e]', icon: <Circle className="w-3 h-3" /> },
+  }[state]
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-semibold leading-tight">{row.label}</p>
+        <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold rounded-full border px-2 py-0.5 ${pill.cls}`}>{pill.icon}{pill.label}</span>
+      </div>
+      <p className="text-xs text-[#b5b5b5] mt-1">{row.unlocks}</p>
+      <p className="flex items-start gap-1.5 text-[11px] text-[#8a8a8a] mt-1.5">
+        <UserRound className={`w-3.5 h-3.5 mt-px shrink-0 ${row.artistLogsIn ? 'text-[#c9a84c]' : 'text-[#6b6b6b]'}`} />
+        <span>
+          {state === 'ready' ? 'Erica has switched it on. Tap Connect below and say yes to Google once.' : row.who}
+          {row.status === 'off' && row.missing.length > 0 && (
+            <span className="block text-[#6b6b6b] mt-0.5">Waiting on: {row.missing.map((m, i) => <span key={m}><code className="text-[#9b9b9b]">{m}</code>{i < row.missing.length - 1 ? ', ' : ''}</span>)}</span>
+          )}
+        </span>
+      </p>
+    </li>
   )
 }
