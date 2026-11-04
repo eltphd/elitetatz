@@ -1,7 +1,7 @@
 -- EliteTatz — production schema snapshot (public schema).
 --
 -- Generated 2026-11-03 from the live catalog of project twyrxtzjictiysxqjmhu
--- after migration 016 (hold_events). This is a reference, not the source of truth: change the
+-- after migration 017 (walkthrough_dismissed_at). This is a reference, not the source of truth: change the
 -- database only through a new file in supabase/migrations/, then regenerate
 -- this snapshot. Tables are ordered so every foreign key target exists first.
 --
@@ -44,6 +44,8 @@ create table artists (
   shop_name text,
   shop_stripe_account_id text,
   stripe_onboarding_complete boolean default false,
+  -- migration 017: when the artist dismissed the first-visit walkthrough; null = never
+  walkthrough_dismissed_at timestamp with time zone,
   constraint artists_pkey PRIMARY KEY (id),
   constraint artists_payout_preference_check CHECK ((payout_preference = ANY (ARRAY['artist'::text, 'shop'::text]))),
   constraint artists_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
