@@ -36,8 +36,8 @@ export async function GET(req: Request) {
     return back('error=exchange')
   }
 
-  // Google lets people untick boxes on the consent screen. If Gmail or
-  // Calendar was left unticked, don't store a half-connection.
+  // Google lets people untick boxes on the consent screen. If Calendar was
+  // left unticked, don't store a half-connection.
   const missing = missingScopes(tokens.scope)
   if (missing.length || !tokens.refresh_token) {
     if (tokens.refresh_token) await revokeToken(tokens.refresh_token)

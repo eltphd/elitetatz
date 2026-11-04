@@ -4,7 +4,7 @@ import { authUrl, googleConfigured, newState, STATE_COOKIE } from '@/lib/google/
 import { tokenCryptoConfigured } from '@/lib/google/crypto'
 
 // Step 2 of 2: the artist, already signed in, asks to let the assistant read
-// their Gmail and Calendar. Sends them to Google's consent screen.
+// their Google Calendar. Sends them to Google's consent screen.
 export async function GET(req: Request) {
   const { origin } = new URL(req.url)
   const ctx = await artistContext()

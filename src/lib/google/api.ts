@@ -4,20 +4,11 @@ import { GoogleAuthError, refreshAccessToken } from './oauth'
 
 // Read-only helpers the assistant uses on an artist's behalf. Every call
 // takes the artist id from artistContext() (the signed-in session), never
-// from the request, so one artist can never reach another's inbox.
+// from the request, so one artist can never reach another's calendar.
 //
-// What these return is deliberately thin: sender, subject, date and Google's
-// short snippet for mail; title, time and location for events. Full message
-// bodies and attachments are not fetched and nothing is stored.
-
-export interface MailHit {
-  id: string
-  threadId: string
-  from: string
-  subject: string
-  date: string
-  snippet: string
-}
+// What these return is deliberately thin: title, time and location for
+// events. Nothing is stored. (Gmail search was removed on 2026-11-04 with
+// the gmail.readonly scope; see oauth.ts.)
 
 export interface CalendarItem {
   id: string
@@ -61,40 +52,6 @@ async function gapi<T>(token: string, url: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) throw new Error(`Google API ${res.status}`)
   return res.json() as Promise<T>
-}
-
-const header = (headers: { name: string; value: string }[] | undefined, name: string) =>
-  headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? ''
-
-/** Gmail search using Gmail's own query syntax (from:, subject:, newer_than:…). */
-export async function searchMail(db: SupabaseClient, artistId: string, query: string, max = 10): Promise<GoogleResult<MailHit[]>> {
-  const auth = await accessTokenFor(db, artistId)
-  if ('error' in auth) return { ok: false, status: auth.status, error: auth.error }
-  try {
-    const list = await gapi<{ messages?: { id: string; threadId: string }[] }>(
-      auth.token,
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ q: query, maxResults: String(Math.min(Math.max(max, 1), 25)) })}`,
-    )
-    const hits = await Promise.all(
-      (list.messages ?? []).map(async (m) => {
-        const msg = await gapi<{ id: string; threadId: string; snippet: string; payload?: { headers?: { name: string; value: string }[] } }>(
-          auth.token,
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
-        )
-        return {
-          id: msg.id,
-          threadId: msg.threadId,
-          from: header(msg.payload?.headers, 'From'),
-          subject: header(msg.payload?.headers, 'Subject'),
-          date: header(msg.payload?.headers, 'Date'),
-          snippet: msg.snippet,
-        }
-      }),
-    )
-    return { ok: true, data: hits, googleEmail: auth.email }
-  } catch {
-    return { ok: false, status: 502, error: 'Gmail did not respond' }
-  }
 }
 
 /** Events on the artist's primary calendar between now and `days` from now. */
