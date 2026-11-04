@@ -71,7 +71,7 @@ export default function ArtistsPage() {
           rel="noopener noreferrer"
           className="mb-12 block rounded-xl border border-[#2a2a2a] bg-[#141414] p-5 transition-colors hover:border-[#c9a84c]"
         >
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#c9a84c]">Live now · Hell City Phoenix</p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#c9a84c]">Live · AION Tattoo, Dublin, Ohio</p>
           <p className="mb-1 font-semibold">rawsunart.com — Lacey Rawson</p>
           <p className="text-sm text-[#6b6b6b]">
             Watercolor tattooer + fine artist. Booth QR funnel, collectors club, travel dates, AI-qualified booking.
