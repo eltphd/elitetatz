@@ -257,8 +257,8 @@ export function copyFor(due: Due, now: number): Copy {
       return {
         client: {
           subject: `Your quote from ${firstName} is good for 14 days`,
-          text: `Hey ${name},\n\nYour quote for ${concept} is good for 14 days.${match.proposed_dates ? ` Dates she offered: ${match.proposed_dates}.` : ''}\n\nDeposit link${external ? ` (${ARTIST_CONFIG.depositCollectedBy}'s secure checkout)` : ''}:\n${link}\n\nQuestions? Your inquiry page: ${inquiry}\n\n${sig}`,
-          sms: `${ARTIST_CONFIG.handle}: your quote is good for 14 days. Deposit link: ${link}`,
+          text: `Hey ${name},\n\nYour quote for ${concept} is good for 14 days.${match.proposed_dates ? ` Dates she offered: ${match.proposed_dates}.` : ''}\n\nDeposit link${external ? ` (${ARTIST_CONFIG.depositCollectedBy}'s secure checkout)` : ''}:\n${link}\n\nAlready sent it? Then you're set; ${firstName} will confirm.\n\nQuestions? Your inquiry page: ${inquiry}\n\n${sig}`,
+          sms: `${ARTIST_CONFIG.handle}: your quote is good for 14 days. Deposit link: ${link} (already paid? you're set)`,
         },
       }
     }
