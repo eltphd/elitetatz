@@ -136,7 +136,7 @@ export default function SignupPage() {
                 <Link href="/auth/login" className="text-[#c9a84c] font-medium">Log in</Link>
               </p>
               <p className="text-center text-[10px] text-[#6b6b6b] leading-relaxed">
-                By signing up you agree to our Terms of Service and Privacy Policy.
+                By signing up you agree to our Terms of Service and <Link href="/privacy" className="text-[#c9a84c]">Privacy Policy</Link>.
               </p>
             </form>
           </>
