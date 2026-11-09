@@ -351,7 +351,7 @@ export async function runHolds(db: SupabaseClient, artistId: string, now = Date.
         await db.from('lead_notes').insert({ match_id: d.match.id, author: 'assistant', kind: 'note', body: copy.note })
       }
       if (copy.artist) {
-        await notifyArtist({ kind: `Hold ${d.hold}`, ref: d.match.id, subject: copy.artist.subject, text: copy.artist.text, sms: copy.artist.sms })
+        await notifyArtist({ kind: `Hold ${d.hold}`, ref: d.match.id, matchId: d.match.id, replyTo: d.match.client_email, subject: copy.artist.subject, text: copy.artist.text, sms: copy.artist.sms })
       }
       if (copy.slack) await postFollowup(copy.slack)
     } catch (err) {

@@ -239,6 +239,8 @@ async function onDepositPaid(db: SupabaseClient, pi: Stripe.PaymentIntent): Prom
     notifyArtist({
       kind: 'Deposit paid',
       ref: matchId,
+      matchId,
+      replyTo: match.client_email,
       subject: `Deposit paid — ${client} · ${concept}`,
       text: `${client} just paid the $${depositDollars} deposit for "${concept}".
 ${dates}.

@@ -89,7 +89,7 @@ export async function POST(req: Request) {
 
   const { data: match } = await admin
     .from('matches')
-    .select('id, status, client_name, ai_summary')
+    .select('id, status, client_name, client_email, ai_summary')
     .eq('id', matchId)
     .single()
   if (!match) return invalid()
@@ -124,6 +124,8 @@ export async function POST(req: Request) {
     await notifyArtist(isDateRequest ? {
       kind: 'Date request',
       ref: matchId,
+      matchId,
+      replyTo: match.client_email,
       subject: `${name} asked for a date — ${concept}`,
       text: `${name} wants to book ${concept} on:
 
@@ -137,6 +139,8 @@ ${dashboard}
     } : {
       kind: 'Client reply',
       ref: matchId,
+      matchId,
+      replyTo: match.client_email,
       subject: `${name} replied — ${concept}`,
       text: `${name} wrote on their inquiry (${concept}, status: ${match.status}):
 
