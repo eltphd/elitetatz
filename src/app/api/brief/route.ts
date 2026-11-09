@@ -204,6 +204,8 @@ Accept with a quote, ask for more info, or pass. Ref ${matchId.slice(0, 8)}.`
   await notifyArtist({
     kind: 'New inquiry',
     ref: matchId,
+    matchId,
+    replyTo: c.clientEmail || null,
     subject: `Inquiry: ${concept} (${placement})`,
     text,
     sms: `New inquiry: ${concept} on ${placement}, ${budget}. Accept / more info / pass at ${dashboard}`,

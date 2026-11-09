@@ -239,11 +239,20 @@ create table artist_notifications (
   read boolean default false,
   created_at timestamp with time zone default now(),
   message text,
+  -- migration 018: delivery log for every email attempt to the artist
+  channel text default 'email'::text not null,
+  status text,
+  error text,
+  provider_id text,
+  recipient text,
+  kind text,
+  ref text,
   constraint artist_notifications_pkey PRIMARY KEY (id),
   constraint artist_notifications_artist_id_fkey FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE,
   constraint artist_notifications_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
 );
 alter table artist_notifications enable row level security;
+CREATE INDEX artist_notifications_status_time_idx ON public.artist_notifications USING btree (status, created_at DESC);
 
 -- client_consents
 create table client_consents (

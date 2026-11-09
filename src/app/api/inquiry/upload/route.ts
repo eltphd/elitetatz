@@ -62,6 +62,7 @@ export async function POST(req: Request) {
   await notifyArtist({
     kind: 'Reference files added',
     ref: matchId,
+    matchId,
     subject: `${who} added ${stored.length} reference file${stored.length === 1 ? '' : 's'}`,
     text: `${who} added ${stored.length} reference file${stored.length === 1 ? '' : 's'} to their inquiry (${str(match.ai_summary) || 'their piece'}).\n\nSee them on the card: ${appUrl()}/dashboard\nRef ${matchId.slice(0, 8)}.`,
     sms: `${who} added ${stored.length} reference file${stored.length === 1 ? '' : 's'}. ${appUrl()}/dashboard`,

@@ -130,6 +130,8 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
     await notifyArtist({
       kind: outcome === 'opened' ? `New ${via.toLowerCase()} inquiry` : `${via} reply`,
       ref: matchId,
+      matchId,
+      replyTo: msg.email ?? null,
       subject: outcome === 'opened' ? `${via}: ${who} — ${conceptFrom(msg.subject, text, msg.channel)}` : `${who} replied by ${via.toLowerCase()}`,
       text: `${outcome === 'opened' ? `New inquiry by ${via.toLowerCase()}` : `Reply by ${via.toLowerCase()}`} from ${who}${files}.
 

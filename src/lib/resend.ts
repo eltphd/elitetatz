@@ -1,19 +1,33 @@
+import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
+
 // Thin Resend wrapper — fetch-based, no SDK dependency.
 // All sends are best-effort: a missing key or a Resend outage must never
-// fail the request that triggered the email.
+// fail the request that triggered the email. `sendEmailDetailed` says why a
+// send did not go, so the caller can record it and raise an alert;
+// `sendEmail` is the yes/no form.
 
 interface SendEmailArgs {
   to: string
   subject: string
   html: string
   text?: string
-  replyTo?: string
+  /** Where a reply from the recipient's mail app goes. Defaults to the artist, so
+   *  a client who hits Reply on anything we send reaches her, never a dead end. */
+  replyTo?: string | null
   from?: string
 }
 
-export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
+export interface SendResult {
+  ok: boolean
+  /** Resend's message id when it was accepted. */
+  id?: string
+  /** Why it did not go: the provider status and body, or 'no-key' when sending is off. */
+  error?: string
+}
+
+export async function sendEmailDetailed(args: SendEmailArgs): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY
-  if (!key) return false
+  if (!key) return { ok: false, error: 'no-key: RESEND_API_KEY is not set' }
 
   // The From domain must be verified in Resend or the send is rejected.
   // rawsunart.com is the domain verified today; elitetatz.com is not, so it
@@ -31,35 +45,42 @@ export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
     subject: args.subject,
     html: args.html,
     text: args.text,
-    reply_to: args.replyTo,
+    reply_to: args.replyTo === null ? undefined : (args.replyTo ?? ARTIST_CONFIG.email),
   })
 
-  // Resend allows ~2 requests/second. Retry once on 429 so two notifications
+  // Resend allows ~2 requests/second. Retry on 429 so two notifications
   // fired back to back (artist + client) do not silently lose one.
+  let lastError = 'resend: no attempt made'
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body,
+        signal: AbortSignal.timeout(15_000),
       })
       if (res.ok) {
         const id = await res.json().then((j: { id?: string }) => j?.id).catch(() => undefined)
         console.log(`resend ok id=${id ?? '?'} to=${maskEmail(args.to)}`)
-        return true
+        return { ok: true, id }
       }
       const detail = await res.text().catch(() => '')
-      console.warn(`resend ${res.status} to=${maskEmail(args.to)} ${detail.slice(0, 200)}`)
-      if (res.status !== 429) return false
+      lastError = `resend ${res.status}: ${detail.slice(0, 200)}`
+      console.warn(`${lastError} to=${maskEmail(args.to)}`)
+      if (res.status !== 429) return { ok: false, error: lastError }
     } catch (err) {
-      console.warn('resend fetch failed', err)
-      return false
+      lastError = `resend fetch failed: ${err instanceof Error ? err.message : String(err)}`
+      console.warn(lastError)
+      return { ok: false, error: lastError }
     }
     await new Promise((r) => setTimeout(r, 700 * (attempt + 1)))
   }
-  return false
+  return { ok: false, error: lastError }
 }
 
+export async function sendEmail(args: SendEmailArgs): Promise<boolean> {
+  return (await sendEmailDetailed(args)).ok
+}
 interface WelcomeEmailArgs {
   artistName: string
   artistHandle: string
