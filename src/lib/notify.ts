@@ -31,10 +31,19 @@ export interface ArtistNotice {
   /** The match this is about, once it exists in the database. Logged with the attempt. */
   matchId?: string | null
   artistId?: string | null
+  /**
+   * Why she must NOT be mailed about this, when there is a reason: she already
+   * holds the message (she forwarded it herself, or it reached the portal by
+   * way of her own mailbox). Nothing is sent to anyone; the attempt is logged
+   * as 'skipped' with this reason, so the record shows a decision, not a gap.
+   */
+  skip?: string | null
 }
 
 export interface ArtistNoticeResult {
   emailed: boolean
+  /** True when nothing was sent on purpose (see ArtistNotice.skip). */
+  skipped?: boolean
   error?: string
   /** The log row, so a caller that creates the match afterwards can attach it. */
   logId: string | null
@@ -46,8 +55,25 @@ export function artistInbox(): string {
 
 // `kind` and `ref` label the operator copy, which never carries the client's
 // name, contact details or words: the client belongs to the artist.
+//
+// The rule (Erica, Nov 9 2026): she never gets two emails about the same
+// thing. One email per event is the default; `skip` is for an event she
+// already has in her own mailbox, where even one more would be the second.
 export async function notifyArtist(args: ArtistNotice): Promise<ArtistNoticeResult> {
   const to = artistInbox()
+  if (args.skip) {
+    const logId = await logDelivery({
+      artistId: args.artistId ?? null,
+      matchId: args.matchId ?? null,
+      kind: args.kind,
+      ref: args.ref,
+      recipient: to,
+      subject: args.subject,
+      result: { ok: false },
+      skipped: args.skip,
+    })
+    return { emailed: false, skipped: true, logId }
+  }
   const result = await sendEmailDetailed({
     from: ARTIST_CONFIG.fromEmail,
     to,
@@ -105,6 +131,8 @@ async function logDelivery(a: {
   recipient: string
   subject: string
   result: { ok: boolean; id?: string; error?: string }
+  /** The reason nothing was sent on purpose. Logged as status 'skipped'. */
+  skipped?: string
 }): Promise<string | null> {
   try {
     const db = createAdminClient()
@@ -118,8 +146,9 @@ async function logDelivery(a: {
         kind: a.kind,
         ref: a.ref,
         channel: 'email',
-        status: a.result.ok ? 'sent' : 'failed',
-        error: a.result.ok ? null : (a.result.error ?? 'unknown').slice(0, 500),
+        status: a.skipped ? 'skipped' : a.result.ok ? 'sent' : 'failed',
+        // For a skipped row this column holds the reason, not a fault.
+        error: a.skipped ? a.skipped.slice(0, 500) : a.result.ok ? null : (a.result.error ?? 'unknown').slice(0, 500),
         provider_id: a.result.id ?? null,
         recipient: maskEmail(a.recipient),
         message: a.subject.slice(0, 200),

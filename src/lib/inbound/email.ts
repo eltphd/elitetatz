@@ -145,6 +145,51 @@ export function ownAddresses(): Set<string> {
   return set
 }
 
+// The artist's own mailbox: where she reads and answers clients. Narrower than
+// ownAddresses() on purpose. The sending address, the operator's copy and the
+// intake address are ours but they are not her inbox, so mail seen there is
+// not mail she has seen.
+export function artistMailboxes(): Set<string> {
+  const set = new Set<string>()
+  const add = (v: string | undefined | null) => { if (v) set.add(bareAddress(v)) }
+  add(ARTIST_CONFIG.email)
+  add(process.env.ARTIST_NOTIFICATION_EMAIL)
+  return set
+}
+
+const ADDRESS = /[^\s<>,;:"'()]+@[^\s<>,;:"'()]+\.[^\s<>,;:"'()]+/g
+
+/**
+ * Did this message pass through the artist's own mailbox before it reached us?
+ * If so she already has it, and emailing her about it would be a second email
+ * about the same thing (Erica's rule, Nov 9 2026: never).
+ *
+ *   'forwarded'  she sent it to us herself (a forward from her address)
+ *   'delivered'  it was addressed or delivered to her and came on to us:
+ *                her mail's auto-forward (To is still her; Gmail adds
+ *                X-Forwarded-For), or a client who wrote to her and to us
+ *   null         it came to us only (the client wrote to the intake address,
+ *                or the operator forwarded it): she needs her one email
+ */
+export function alreadyInArtistMailbox(mail: ReceivedEmail): 'forwarded' | 'delivered' | null {
+  const hers = artistMailboxes()
+  if (hers.has(bareAddress(mail.from))) return 'forwarded'
+  const fields = [
+    ...(Array.isArray(mail.to) ? mail.to : []),
+    header(mail, 'to'),
+    header(mail, 'cc'),
+    header(mail, 'delivered-to'),
+    header(mail, 'x-original-to'),
+    header(mail, 'x-forwarded-for'),
+  ]
+  for (const field of fields) {
+    for (const addr of String(field ?? '').toLowerCase().match(ADDRESS) ?? []) {
+      if (hers.has(addr)) return 'delivered'
+    }
+  }
+  return null
+}
+
 // Plain text out of the message: the text part, else the HTML with tags gone.
 export function textBody(mail: Pick<ReceivedEmail, 'text' | 'html'>): string {
   if (mail.text && mail.text.trim()) return mail.text.replace(/\r\n/g, '\n').trim()
@@ -242,6 +287,8 @@ export function normalizeEmail(mail: ReceivedEmail, attachments: Array<{ url: st
     subject,
     attachments,
     meta: { message_id: mail.message_id ?? null },
+    // Read from the envelope as it arrived, before any forward was unwrapped.
+    artistHasIt: alreadyInArtistMailbox(mail),
   }
 }
 

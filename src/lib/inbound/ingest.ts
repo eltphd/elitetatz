@@ -24,6 +24,14 @@ export interface NormalizedInbound {
   attachments: Array<{ url: string; filename?: string | null; mime?: string | null; headers?: Record<string, string> }>
   /** Anything else worth keeping with the message (subject, handle, raw sender). */
   meta?: Record<string, unknown>
+  /**
+   * Set by an adapter when the message already sits in the artist's own
+   * mailbox ('forwarded' by her, or 'delivered' to her on its way to us). The
+   * lead and the thread are kept exactly the same; she is just not emailed a
+   * second copy of something she holds. Only email can set this: a DM or a
+   * text never passed through her inbox, so those always get their one email.
+   */
+  artistHasIt?: 'forwarded' | 'delivered' | null
 }
 
 export type IngestOutcome =
@@ -132,6 +140,10 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
       ref: matchId,
       matchId,
       replyTo: msg.email ?? null,
+      skip:
+        msg.artistHasIt === 'forwarded' ? 'already in her mailbox: she forwarded this message herself'
+        : msg.artistHasIt === 'delivered' ? 'already in her mailbox: it was delivered to her address on its way here'
+        : null,
       subject: outcome === 'opened' ? `${via}: ${who} — ${conceptFrom(msg.subject, text, msg.channel)}` : `${who} replied by ${via.toLowerCase()}`,
       text: `${outcome === 'opened' ? `New inquiry by ${via.toLowerCase()}` : `Reply by ${via.toLowerCase()}`} from ${who}${files}.
 
