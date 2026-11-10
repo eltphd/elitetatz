@@ -22,8 +22,30 @@ Tests: `__tests__/unit/inbound-own-mailbox.test.ts` (12 cases) and one skip case
 
 PR #46 (digest, probe, nudge) adds a `probe` flag to `notifyArtist` for the same purpose. It should rebase onto this and pass `skip: 'probe: not sent by design'` instead, so there is one way to not send.
 
-## Not fixed here: the portal cannot see her email replies
+## The false nudges (second commit, same branch)
 
-P0 made every email to her reply-to the client, so she answers from her mail app. That reply goes client-direct and never reaches the portal. The hold timers therefore still think the lead is unanswered: at 36 h (24 h after PR #46) the client is emailed "Still with Lacey, you'll hear by Thursday" and Lacey is nudged, about a client she already answered. The digest would list the same lead as waiting on her.
+P0 made every email to her reply-to the client, so she answers from her mail app. That reply went client-direct and never reached the portal. The hold timers went on thinking the lead was unanswered: at 36 h the client was emailed "Still with Lacey, you'll hear by Thursday" and Lacey was nudged, about a client she had already answered. Erica, Nov 10: fix it.
 
-This is the larger form of the same problem, and it is what the brief's item 5 anticipated ("CC or BCC a parse address ... must never sit between Lacey and the client"). Recommended shape: add the intake address as a second Reply-To on her notification emails, and teach the email adapter that non-forward mail from her address is her reply: match it to the lead by the client's address, record it as an artist message, set `artist_responded_at`. No mail to anyone, and holds and the digest stop on their own. Needs Erica's decision because the client will see the intake address beside their own on her reply.
+Two rules, both in the direction of sending less.
+
+**1. Her email reply counts as her answer.**
+
+- `artistReplyTo()` in `lib/notify.ts`: every email to her about a client now carries two Reply-To addresses, the client first and the intake address (`INBOUND_EMAIL_ADDRESS`) beside it. Her reply reaches the client directly whether or not the portal is up; the intake copy is only a copy. `REPLY_SYNC=off` turns it back to the client alone.
+- `readArtistReply()` in `inbound/email.ts`: mail from her mailbox written to someone who is not us is her reply. A forward is addressed to us alone and stays on the forward path, which also fixes Outlook-style replies ("Original Message") being read as a forward from the client.
+- `recordArtistReply()` in `inbound/ingest.ts`: the reply goes on the lead as an artist message and sets `artist_responded_at`. Nothing is sent to anyone. No lead is ever opened from her outgoing mail.
+- Her words are shown in the thread (which the client sees on their inquiry page) only when the receiving server vouched for the sender (DMARC pass, or DKIM signed by her domain). Otherwise the row says "Replied by email." The timers stop either way.
+
+**2. The portal does not time a conversation it cannot see.**
+
+- A client message that passed through her mailbox is stored with `meta.mailbox`; her email reply is stored with `meta.mailbox = 'reply'`.
+- In `dueHolds`, when the last word on a pending or info-requested lead carries that mark, holds A and B do not fire. Whoever answers next can do it in her mail app without the portal seeing it, and a wrong "still with Lacey" or "answer when ready" costs more trust than a missed reminder.
+- The timers pick up again the moment either side writes where the portal does see: the inquiry page, the form, a DM, her portal inbox.
+- Quote, deposit and date holds (C, D, E) come from her own taps in the portal and stay timed.
+
+What the client sees: when she replies, the To line shows their own address and the intake address. If the client replies-all, the portal gets a copy, files it on the thread, and (because it was also delivered to her) sends her nothing.
+
+**Still possible, and why it is left:** she answers a form inquiry by phone, by text, or by composing a fresh email instead of replying to ours. The portal cannot know, so the 36 h nudge would still go. Closing that needs either reading her mailbox (rejected: restricted scope, and it is her mail) or a one-tap "already answered" link in the nudge.
+
+PR #46 moves `waitingOnArtistSince` into a shared function for the digest. On rebase that function must carry the `inHerMailbox` rule, or the digest will list as "waiting on you" exactly the leads the timers now leave alone.
+
+Tests: `reply-sync.test.ts` (16 cases), `notify-reply-to.test.ts` (5). Suite: 235 passing.

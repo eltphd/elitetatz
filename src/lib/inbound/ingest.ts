@@ -38,6 +38,7 @@ export type IngestOutcome =
   | { outcome: 'duplicate' }
   | { outcome: 'ignored'; reason: string }
   | { outcome: 'appended' | 'opened'; matchId: string; attachments: number }
+  | { outcome: 'artist_reply'; matchId: string }
   | { outcome: 'error'; error: string }
 
 const DUPLICATE = '23505'
@@ -107,7 +108,14 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
       body,
       channel: msg.channel,
       externalId: msg.externalId,
-      meta: { ...(msg.meta ?? {}), ...(msg.subject ? { subject: msg.subject } : {}), ...(msg.senderName ? { from: msg.senderName } : {}) },
+      meta: {
+        ...(msg.meta ?? {}),
+        ...(msg.subject ? { subject: msg.subject } : {}),
+        ...(msg.senderName ? { from: msg.senderName } : {}),
+        // The hold timers read this: a message that sits in her mailbox can be
+        // answered from there without our seeing it, so it is never timed.
+        ...(msg.artistHasIt ? { mailbox: msg.artistHasIt } : {}),
+      },
     })
     if (!appended) throw new Error('could not append message')
     if (appended.duplicate) {
@@ -160,6 +168,66 @@ Ref ${matchId.slice(0, 8)}.`,
     const error = err instanceof Error ? err.message : String(err)
     console.error(`ingest ${msg.channel}:`, error)
     await finishEvent(db, msg.channel, msg.externalId, { outcome: 'error', error: error.slice(0, 500) })
+    return { outcome: 'error', error }
+  }
+}
+
+// Her own reply to a client, sent from her mail app and copied to the intake
+// address (lib/notify.ts, artistReplyTo). It goes on the lead as her message
+// and counts as her answer, so the hold timers stop: no nudge to her about
+// someone she already wrote back to, and no "still with Lacey" to that client.
+// Nothing is sent to anyone from here, and no lead is ever opened from her
+// outgoing mail: a reply to someone the portal does not know is left alone.
+export async function recordArtistReply(
+  db: SupabaseClient,
+  reply: { externalId: string; clients: string[]; text: string; subject: string | null; verified: boolean },
+): Promise<IngestOutcome> {
+  const recorded = await recordEvent(db, 'email', reply.externalId)
+  if (recorded === 'duplicate') return { outcome: 'duplicate' }
+  if (recorded === 'error') return { outcome: 'error', error: 'could not record event' }
+
+  try {
+    const artist = await artistForInbound(db)
+    if (!artist) throw new Error('artist not configured')
+
+    let lead: Awaited<ReturnType<typeof findOpenLead>> = null
+    for (const email of reply.clients.slice(0, 5)) {
+      lead = await findOpenLead(db, artist.id, { email })
+      if (lead) break
+    }
+    if (!lead) {
+      await finishEvent(db, 'email', reply.externalId, { outcome: 'ignored', error: 'artist reply: no open lead for the recipient' })
+      return { outcome: 'ignored', reason: 'artist-reply-no-lead' }
+    }
+
+    // Her words go in the thread (which the client can see on their inquiry
+    // page) only when the receiving server vouched for the sender. Otherwise
+    // the fact of the reply is recorded and the text is left in her mail.
+    const body = reply.verified && reply.text.trim() ? reply.text.trim().slice(0, 4000) : 'Replied by email.'
+    const now = new Date().toISOString()
+    const { error } = await db.from('match_messages').insert({
+      match_id: lead.id,
+      sender: 'artist',
+      body,
+      channel: 'email',
+      external_id: reply.externalId,
+      meta: { mailbox: 'reply', verified: reply.verified, ...(reply.subject ? { subject: reply.subject } : {}) },
+    })
+    if (error) {
+      // The same message delivered twice is not a failure.
+      if ((error as { code?: string }).code === DUPLICATE) {
+        await finishEvent(db, 'email', reply.externalId, { match_id: lead.id, outcome: 'duplicate' })
+        return { outcome: 'duplicate' }
+      }
+      throw new Error(`artist reply insert: ${error.message}`)
+    }
+    await db.from('matches').update({ artist_responded_at: now, updated_at: now }).eq('id', lead.id)
+    await finishEvent(db, 'email', reply.externalId, { match_id: lead.id, outcome: 'artist_reply' })
+    return { outcome: 'artist_reply', matchId: lead.id }
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err)
+    console.error('artist reply:', error)
+    await finishEvent(db, 'email', reply.externalId, { outcome: 'error', error: error.slice(0, 500) })
     return { outcome: 'error', error }
   }
 }

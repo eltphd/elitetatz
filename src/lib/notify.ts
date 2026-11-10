@@ -53,6 +53,26 @@ export function artistInbox(): string {
   return process.env.ARTIST_NOTIFICATION_EMAIL ?? ARTIST_CONFIG.email
 }
 
+/**
+ * Where her Reply goes when she answers one of our emails from her mail app:
+ * to the client first, and to the intake address beside it, so the portal
+ * hears that she answered. Without that copy the portal would go on thinking
+ * the client is waiting, nudge her about someone she already wrote back to,
+ * and tell that client "still with Lacey" (src/lib/holds.ts).
+ *
+ * The intake address is only ever a copy: her reply reaches the client
+ * directly whether or not the portal is up. Off when INBOUND_EMAIL_ADDRESS is
+ * unset or REPLY_SYNC is "off"; then the reply goes to the client alone.
+ */
+export function artistReplyTo(client: string | null | undefined): string | string[] | undefined {
+  const to = client?.trim()
+  if (!to) return undefined
+  const intake = process.env.INBOUND_EMAIL_ADDRESS?.trim()
+  const off = /^(0|false|off|no)$/i.test((process.env.REPLY_SYNC ?? '').trim())
+  if (!intake || off || intake.toLowerCase() === to.toLowerCase()) return to
+  return [to, intake]
+}
+
 // `kind` and `ref` label the operator copy, which never carries the client's
 // name, contact details or words: the client belongs to the artist.
 //
@@ -77,7 +97,7 @@ export async function notifyArtist(args: ArtistNotice): Promise<ArtistNoticeResu
   const result = await sendEmailDetailed({
     from: ARTIST_CONFIG.fromEmail,
     to,
-    replyTo: args.replyTo || undefined,
+    replyTo: artistReplyTo(args.replyTo),
     subject: args.subject,
     html: html(args.text),
     text: args.text,
