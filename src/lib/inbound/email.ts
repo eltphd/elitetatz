@@ -145,6 +145,27 @@ export function ownAddresses(): Set<string> {
   return set
 }
 
+/**
+ * The domain the intake address lives on (inbox.rawsunart.com). Resend
+ * receives every address on that domain, so every address there is the
+ * portal's own, whatever INBOUND_EMAIL_ADDRESS is set to today. That keeps an
+ * older intake address working after the setting is renamed: a forward sent
+ * to the old one is still read as a forward, not as a reply to a client.
+ */
+export function intakeDomain(): string | null {
+  const addr = process.env.INBOUND_EMAIL_ADDRESS ? bareAddress(process.env.INBOUND_EMAIL_ADDRESS) : ''
+  const domain = addr.split('@')[1]
+  return domain || null
+}
+
+/** Is this address one of ours: a listed address, or anything on the intake domain? */
+export function isOurs(address: string, own: Set<string> = ownAddresses()): boolean {
+  const a = bareAddress(address)
+  if (own.has(a)) return true
+  const domain = intakeDomain()
+  return Boolean(domain) && a.endsWith(`@${domain}`)
+}
+
 // The artist's own mailbox: where she reads and answers clients. Narrower than
 // ownAddresses() on purpose. The sending address, the operator's copy and the
 // intake address are ours but they are not her inbox, so mail seen there is
@@ -260,17 +281,17 @@ export function normalizeEmail(mail: ReceivedEmail, attachments: Array<{ url: st
   let text = textBody(mail)
   const own = ownAddresses()
 
-  if (own.has(bareAddress(from))) {
+  if (isOurs(from, own)) {
     const fwd = unwrapForward(text)
     if (!fwd) return { ignored: 'own-address' }
     from = fwd.from
     subject = fwd.subject ?? subject
     text = fwd.body
-    if (own.has(bareAddress(from))) return { ignored: 'own-address' }
+    if (isOurs(from, own)) return { ignored: 'own-address' }
   } else {
     // A client replying to Lacey's forwarded copy of something: still unwrap.
     const fwd = unwrapForward(text)
-    if (fwd && !own.has(bareAddress(fwd.from)) && bareAddress(fwd.from) === bareAddress(from)) text = fwd.body
+    if (fwd && !isOurs(fwd.from, own) && bareAddress(fwd.from) === bareAddress(from)) text = fwd.body
   }
 
   const email = bareAddress(from)
@@ -331,7 +352,7 @@ export function readArtistReply(mail: ReceivedEmail): ArtistReply | null {
   if (isAutomated(mail)) return null
   if (!artistMailboxes().has(bareAddress(mail.from))) return null
   const own = ownAddresses()
-  const clients = recipients(mail).filter((a) => !own.has(a))
+  const clients = recipients(mail).filter((a) => !isOurs(a, own))
   if (!clients.length) return null
   return {
     externalId: `resend:${mail.id}`,
