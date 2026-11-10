@@ -11,8 +11,8 @@ import { detectPlatform, homeScreenHint, type Platform, type WalkthroughState } 
 // empty and she may want it back.
 
 const TAPS: { name: string; button: string; what: string }[] = [
-  { name: 'Quote', button: 'Accept', what: 'your number and two dates; the client gets the deposit link' },
-  { name: 'Ask', button: 'More info', what: 'one question, already drafted from what the chat left open' },
+  { name: 'Quote', button: 'Send a quote', what: 'your number and two dates; the client gets the deposit link' },
+  { name: 'Ask', button: 'Ask a question', what: 'one question, already drafted from what the chat left open' },
   { name: 'Reply', button: 'the box under the thread', what: 'a plain message, sent only when you tap' },
   { name: 'Pass', button: 'Pass', what: 'a kind no, with or without a line of your own' },
   { name: 'Deposit received', button: 'Deposit received', what: 'when AION takes it; that is what holds the spot' },
