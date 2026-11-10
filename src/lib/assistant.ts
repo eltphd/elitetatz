@@ -6,6 +6,7 @@ import { CHANNEL_LABEL, type Channel } from '@/lib/channels'
 import { attachmentAsImageBlock, type AttachmentRow } from '@/lib/attachments'
 import { suggestQuote, money } from '@/lib/quote'
 import { historyLine, type ClientHistory } from '@/lib/client-history'
+import { ADD_ON_FACTS } from '@/lib/addons'
 
 // The assistant in Lacey's inbox. It has read everything on the lead: the
 // brief, the concierge transcript, every message on the thread by every
@@ -14,10 +15,42 @@ import { historyLine, type ClientHistory } from '@/lib/client-history'
 // about a price. It never contacts a client: a draft is text in a box until
 // she taps send.
 
-export type AssistantMode = 'ask' | 'intent' | 'clarify' | 'quote'
-export const ASSISTANT_MODES: AssistantMode[] = ['ask', 'intent', 'clarify', 'quote']
+export type AssistantMode = 'ask' | 'intent' | 'clarify' | 'quote' | 'reword'
+export const ASSISTANT_MODES: AssistantMode[] = ['ask', 'intent', 'clarify', 'quote', 'reword']
+/** The three one-tap reads. 'ask' and 'reword' carry her own words instead. */
+export type ReadMode = 'intent' | 'clarify' | 'quote'
 
-export const MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string> = {
+// "Say it for me" (Nov 10, 2026). She types or says what she wants to tell
+// the client, however it comes out; the assistant hands back the same thing
+// worded for that client. It is an aid and says so: her decision, her price
+// and her boundaries are never changed, she is asked when her meaning is not
+// clear, and nothing is sent unless she taps send on it herself.
+//
+// The answer has four labelled parts (read by lib/reword.ts). Only MESSAGE is
+// for the client; the rest is the assistant talking to her.
+export function rewordPrompt(herWords: string, returning: boolean): string {
+  return `Lacey has told you, in her own words, what she wants to say to this client. Her words are at the end, after LACEY'S WORDS. Your job is the wording, nothing else.
+
+She is the artist. What she decided stands exactly as she said it: what she will do, what she will not do, her price, her dates. Do not add an offer, a discount, a date, a price or a promise she did not make. Do not turn a no into a maybe. If she will not copy another artist's piece or tattoo art an AI generated, the message says so plainly and kindly; you may add what she does instead only when it is in her standing practice above (she interprets a reference and designs her own version; the design is finished together at the appointment).
+
+Write the message she would send: first person, her register (warm, brief, direct, no emoji, no sales talk), and shaped for THIS client. Read how they write in the thread and what they care about (the meaning of the piece, the money, the nerves of a first tattoo, the date) and meet them there. Where she was blunt, be kind without losing the point. Where she gave a reason, keep it; a reason helps a client accept a no. Open with the thing they most want to know. ${returning ? 'They have been tattooed by her before: no introduction, no pitch.' : ''} Do not mention the assistant, the inbox or any software.
+
+Then talk to Lacey, briefly and as a colleague, not a rule-giver:
+- Say what you kept and what you softened or reordered, and why it may land better with this client. One or two sentences.
+- If her words could mean two different things, or you had to guess at what she meant, ask her one short question rather than guessing. If you are confident, say so in a word.
+- If she is giving a price or saying yes, and has not mentioned them, remind her of her add-ons (see the facts above). If her number sits under her published band for this size, say that in one line; it is her call.
+
+Output exactly these four labelled parts, in this order, and nothing else:
+MESSAGE: the message for the client, ready to send as it is.
+WHY: your one or two sentences to Lacey.
+CHECK: your one question to Lacey, or the word none.
+ADDONS: your reminder to Lacey, or the word none.
+
+LACEY'S WORDS:
+${herWords}`
+}
+
+export const MODE_PROMPT: Record<ReadMode, string> = {
   intent:
     'Read everything on this lead and tell Lacey what this client actually wants: the piece, the feeling behind it, how set they are on the reference, how ready they are to book, and anything that does not add up. Then list, as short bullets, what is still unknown that she needs before quoting. End with one line: whether you would quote now, ask first, or pass, and why. Under 180 words.',
   clarify:
@@ -28,7 +61,7 @@ export const MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string> = {
 
 // A returning client is not a stranger. The same three buttons, read differently:
 // no qualification she already did with them, no pitch, dates over questions.
-export const RETURNING_MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string> = {
+export const RETURNING_MODE_PROMPT: Record<ReadMode, string> = {
   intent:
     'This client has been tattooed by Lacey before (see CLIENT HISTORY). Do not treat them as a stranger. Tell her what is new in this request against what she already knows: is it an addition to her earlier work, a touch-up, or a new piece; what they want and why; how ready they are. Do not relist the qualifying questions she settles with first-timers unless this piece genuinely leaves one open. End with one line: offer dates now, or ask one thing first, and which thing. Under 150 words.',
   clarify:
@@ -37,7 +70,7 @@ export const RETURNING_MODE_PROMPT: Record<Exclude<AssistantMode, 'ask'>, string
     'Reason about the price for this piece using Lacey\'s bands and the suggested number below, knowing this is a returning client. Say whether the suggestion is right, high or low in plain sentences. If this is a touch-up or an addition to her own earlier work, say so: she may price that below the band, her call. End with a single line "Suggest: $X" or "Suggest: $X/hr, N sessions". Under 120 words.',
 }
 
-export function modePrompt(mode: Exclude<AssistantMode, 'ask'>, returning: boolean): string {
+export function modePrompt(mode: ReadMode, returning: boolean): string {
   return returning ? RETURNING_MODE_PROMPT[mode] : MODE_PROMPT[mode]
 }
 
@@ -74,6 +107,7 @@ Facts about her practice (use them, do not invent others):
 - Pricing: $${ARTIST_CONFIG.hourlyRate}/hr, ${money(ARTIST_CONFIG.minimumCents)} one-hour minimum. Published bands: $250–400 under 2", $400–700 for 2–4", $700–1,200 for 4–10", $1,200+ above. Lines only is her cheaper option; color sits higher than lines.
 - Deposit: ${ARTIST_CONFIG.depositPolicy}
 - Design happens at the appointment; she does not send sketches ahead. She interprets references, she does not copy them, and she likes creative freedom.
+- ${ADD_ON_FACTS}
 
 How she talks, for drafts in her voice: ${v.closingStyle} Openers she uses: ${v.openingPhrases.slice(0, 2).map((p) => `"${p}"`).join(' / ')}. Questions she asks before quoting: ${v.qualifyingQuestions.slice(0, 5).join(' ')}
 

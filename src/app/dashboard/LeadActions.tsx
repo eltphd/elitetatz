@@ -36,6 +36,7 @@ const money = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { max
 export function LeadActions({
   matchId,
   status,
+  clientName = 'Client',
   dateRequest,
   appointmentAt,
   suggestedQuestion,
@@ -48,6 +49,8 @@ export function LeadActions({
 }: {
   matchId: string
   status: 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked' | 'completed'
+  /** First name for the labels, or "Client". */
+  clientName?: string
   dateRequest?: string | null
   appointmentAt?: string | null
   // Drafted from what the client could not settle in the chat; pre-fills
@@ -71,6 +74,9 @@ export function LeadActions({
   const [note, setNote] = useState('')
   const [question, setQuestion] = useState('')
   const [designFee, setDesignFee] = useState('')
+  const [original, setOriginal] = useState<'' | 'digital' | 'paper'>('')
+  const [originalFee, setOriginalFee] = useState('')
+  const them = clientName === 'Client' ? 'the client' : clientName
   const [when, setWhen] = useState('')
   const [prefilled, setPrefilled] = useState(false)
   const [showReasons, setShowReasons] = useState(false)
@@ -112,6 +118,8 @@ export function LeadActions({
           price_cents: action === 'accept' ? Math.round(Number(quoteStr) * 100) : undefined,
           proposed_dates: action === 'accept' ? dates || undefined : undefined,
           design_fee_cents: action === 'accept' && designFee !== '' ? Math.round(Number(designFee) * 100) : undefined,
+          original_art: action === 'accept' && original ? original : undefined,
+          original_art_cents: action === 'accept' && original && originalFee !== '' ? Math.round(Number(originalFee) * 100) : undefined,
           appointment_at: action === 'confirm_date' ? new Date(when).toISOString() : undefined,
           message: action === 'more_info' ? question : note || undefined,
         }),
@@ -200,9 +208,30 @@ export function LeadActions({
         <Field label="Proposed dates">
           <input type="text" value={dates} onChange={(e) => setDates(e.target.value)} placeholder="Wed Oct 8 at 1pm or Sat Oct 11 at noon" className={INPUT} />
         </Field>
-        <Field label="Design draft fee ($, optional — only if they want drafts before the session)">
-          <input type="number" inputMode="decimal" min={0} value={designFee} onChange={(e) => setDesignFee(e.target.value)} placeholder="leave blank for none" className={INPUT} />
-        </Field>
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#161616] p-3 space-y-3">
+          <p className="text-[11px] font-semibold text-[#e0c878]">Extras that are easy to forget <span className="font-normal text-[#8a8a8a]">· optional, leave blank to skip</span></p>
+          <Field label="Design drafts before the session ($)">
+            <input type="number" inputMode="decimal" min={0} value={designFee} onChange={(e) => setDesignFee(e.target.value)} placeholder="only if they want drafts ahead" className={INPUT} />
+          </Field>
+          <Field label={`An original of the piece for ${them} to keep, handed over at the appointment`}>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([['', 'None'], ['digital', 'Digital (Procreate)'], ['paper', 'Watercolor paper']] as const).map(([value, label]) => (
+                <button
+                  key={value || 'none'}
+                  type="button"
+                  aria-pressed={original === value}
+                  onClick={() => setOriginal(value)}
+                  className={`rounded-xl border px-2 py-2 text-[11px] font-medium leading-tight ${original === value ? 'border-[#c9a84c] bg-[#c9a84c]/15 text-[#e0c878]' : 'border-[#2a2a2a] bg-[#1e1e1e] text-[#b8b8b8]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {original && (
+              <input type="number" inputMode="decimal" min={0} value={originalFee} onChange={(e) => setOriginalFee(e.target.value)} placeholder="your price for the original ($)" aria-label="Price for the original" className={`${INPUT} mt-2`} />
+            )}
+          </Field>
+        </div>
         <Field label="Note to client (optional)">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Anything they should know before booking…" className={`${INPUT} resize-none`} />
         </Field>
@@ -371,14 +400,14 @@ export function LeadActions({
           className="flex items-center justify-center gap-1.5 bg-[#c9a84c] text-black font-bold py-3 rounded-xl text-sm"
         >
           <CheckCircle className="w-3.5 h-3.5" />
-          Accept
+          <span className="truncate">Send a quote</span>
         </button>
         <button
           onClick={openMoreInfo}
           className="flex items-center justify-center gap-1.5 bg-[#1e1e1e] border border-[#c9a84c]/30 text-[#e0c878] font-semibold py-3 rounded-xl text-sm"
         >
           <HelpCircle className="w-3.5 h-3.5" />
-          <span className="truncate">{status === 'info_requested' ? 'Ask again' : 'More info'}</span>
+          <span className="truncate">{status === 'info_requested' ? 'Ask again' : 'Ask a question'}</span>
         </button>
         <button
           onClick={() => setPanel('decline')}
@@ -388,6 +417,9 @@ export function LeadActions({
           Pass
         </button>
       </div>
+      <p className="text-[10px] leading-relaxed text-[#8a8a8a]">
+        Each one opens a short form first. {them === 'the client' ? 'The client' : them} gets one email only when you tap the send button on that form.
+      </p>
     </div>
   )
 }

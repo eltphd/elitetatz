@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { artistContext } from '@/lib/artist-session'
-import { ASSISTANT_MODES, modePrompt, buildLeadContext, systemPrompt, type AssistantMode, type LeadRow, type MsgRow, type NoteRow } from '@/lib/assistant'
+import { ASSISTANT_MODES, modePrompt, rewordPrompt, buildLeadContext, systemPrompt, type AssistantMode, type LeadRow, type MsgRow, type NoteRow } from '@/lib/assistant'
+import { parseReworded } from '@/lib/reword'
 import { clientHistory } from '@/lib/client-history'
 import type { AttachmentRow } from '@/lib/attachments'
 
@@ -9,7 +10,10 @@ import type { AttachmentRow } from '@/lib/attachments'
 // on the lead as assistant notes so the next question has the last one.
 // Nothing here reaches a client.
 //
-// Body: { matchId, mode: 'ask' | 'intent' | 'clarify' | 'quote', question? }
+// Body: { matchId, mode: 'ask' | 'intent' | 'clarify' | 'quote' | 'reword', question? }
+// 'reword' is "say it for me": `question` is what she wants to tell the client
+// in her own words, and the answer is the same thing worded for that client,
+// with a note to her (lib/assistant.ts, rewordPrompt).
 
 const str = (v: unknown) => (v == null ? '' : String(v)).trim()
 const client = new Anthropic()
@@ -33,6 +37,7 @@ export async function POST(req: Request) {
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!ASSISTANT_MODES.includes(mode)) return Response.json({ error: 'Unknown mode' }, { status: 400 })
   if (mode === 'ask' && !question) return Response.json({ error: 'Ask something' }, { status: 400 })
+  if (mode === 'reword' && !question) return Response.json({ error: 'Say what you want to tell them first' }, { status: 400 })
 
   const { data: lead } = await db
     .from('matches')
@@ -63,15 +68,21 @@ export async function POST(req: Request) {
     history,
   })
 
-  const ask = mode === 'ask' ? question : modePrompt(mode, history?.kind === 'returning')
+  const returning = history?.kind === 'returning'
+  const ask = mode === 'ask' ? question : mode === 'reword' ? rewordPrompt(question, returning) : modePrompt(mode, returning)
   const content: Anthropic.ContentBlockParam[] = [
-    { type: 'text', text: `${context.text}\n\n---\nLACEY ASKS:\n${ask}` },
+    { type: 'text', text: `${context.text}\n\n---\n${mode === 'reword' ? 'LACEY WANTS HELP WORDING A MESSAGE:' : 'LACEY ASKS:'}\n${ask}` },
     ...context.images,
   ]
 
   // The question is saved first so a dropped stream still leaves a trace.
-  const kindOut = mode === 'clarify' ? 'draft' : 'answer'
-  await db.from('lead_notes').insert({ match_id: matchId, author: 'assistant', kind: 'question', body: mode === 'ask' ? question : `[${mode}]` })
+  const kindOut = mode === 'clarify' || mode === 'reword' ? 'draft' : 'answer'
+  await db.from('lead_notes').insert({
+    match_id: matchId,
+    author: 'assistant',
+    kind: 'question',
+    body: mode === 'ask' ? question : mode === 'reword' ? `Help me say: ${question}` : `[${mode}]`,
+  })
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
@@ -109,7 +120,9 @@ export async function POST(req: Request) {
         controller.close()
         return
       }
-      const text = full.trim()
+      // A reworded message is saved as the message alone: the note to her
+      // (why, check, add-ons) is for the moment, not for the record.
+      const text = mode === 'reword' ? parseReworded(full).message : full.trim()
       let noteId: string | null = null
       if (text) {
         const { data } = await db.from('lead_notes').insert({ match_id: matchId, author: 'assistant', kind: kindOut, body: text }).select('id').single()

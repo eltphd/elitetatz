@@ -126,8 +126,8 @@ export function AssistantPanel({
     <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
       <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-xs text-[#6b6b6b] hover:text-white transition-colors">
         <Bot className="w-3.5 h-3.5" />
-        <span>Assistant{items.length ? ` · ${Math.ceil(items.length / 2)}` : ''}</span>
-        <span className="text-[10px] text-[#4a4a4a]">has read the whole lead · drafts only, you send</span>
+        <span>Ask about this client{items.length ? ` · ${Math.ceil(items.length / 2)}` : ''}</span>
+        <span className="text-[10px] text-[#6b6b6b]">what they want, what is open, is the price right</span>
       </button>
 
       {open && (

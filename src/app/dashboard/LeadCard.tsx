@@ -10,6 +10,8 @@ import { AttachmentGrid, type AttachmentView } from './AttachmentGrid'
 import { LeadWorkspace } from './LeadWorkspace'
 import type { NoteView } from './NotesPanel'
 import { historyLine, NEW_CLIENT, type ClientHistory } from '@/lib/client-history'
+import { artistHasLastWord } from '@/lib/standing'
+import { StandingBanner, ClientView } from './LeadStanding'
 
 // One lead, whatever channel it came by: who, what, the files, what is still
 // open, the starting number, and then her buttons, the assistant, her notes
@@ -91,7 +93,9 @@ export function clientOwesNothing(thread: ThreadMessage[]): boolean {
 
 export function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
   if (CLOSED.includes(lead.status)) return 'closed'
-  if (lead.status === 'pending') return 'needs_you'
+  // New, unless she has already answered (from here or from her own email)
+  // and the client has not written since: then it is their move, not hers.
+  if (lead.status === 'pending') return artistHasLastWord(thread) ? 'waiting' : 'needs_you'
   if (!clientOwesNothing(thread)) return 'needs_you'
   // A paid client who has named a date and is waiting on her final say.
   if (lead.status === 'paid' && lead.date_request && !lead.appointment_at) return 'needs_you'
@@ -165,6 +169,10 @@ export function LeadCard({
   const links = !demo && linksConfigured()
   const returning = history.kind === 'returning'
   const known = history.kind === 'known'
+  const first = name === 'Anonymous' || name === phone ? 'Client' : name.split(' ')[0]
+  const firstWords = first === 'Client' ? 'the client' : first
+  const standingLead = { status: lead.status, channel, created_at: lead.created_at, offered_price_cents: lead.offered_price_cents, appointment_at: lead.appointment_at, date_request: lead.date_request }
+  const replyVia = replyRoute({ channel, client_email: email || null, client_phone: phone || null, external_thread_id: lead.external_thread_id })
 
   return (
     <div className={`bg-[#141414] border rounded-2xl p-4 ${group === 'needs_you' ? 'border-[#c9a84c]/25' : 'border-[#2a2a2a]'}`}>
@@ -292,20 +300,23 @@ export function LeadCard({
         </div>
       )}
 
+      <StandingBanner lead={standingLead} thread={thread} first={firstWords} />
+      <ClientView lead={standingLead} thread={thread} first={firstWords} replyVia={replyVia} pageUrl={links ? inquiryUrl(lead.id) : null} demo={demo} />
+
       <LeadWorkspace
         matchId={lead.id}
         status={lead.status}
         actionable={actionable}
         conversationId={lead.conversation_id}
         thread={thread}
-        clientName={name === 'Anonymous' || name === phone ? 'Client' : name.split(' ')[0]}
+        clientName={first}
         canReply={!['rejected', 'cancelled'].includes(lead.status) && Boolean(email || phone || lead.external_thread_id?.startsWith('chatwoot:'))}
         dateRequest={lead.date_request}
         appointmentAt={lead.appointment_at}
         suggestedQuestion={suggestedQuestion(brief)}
         quote={quote}
         notes={notes}
-        replyVia={replyRoute({ channel, client_email: email || null, client_phone: phone || null, external_thread_id: lead.external_thread_id })}
+        replyVia={replyVia}
         reviewUrlConfigured={reviewUrlConfigured}
         sessionDone={lead.status === 'booked' && isPast(lead.appointment_at)}
         returning={returning}

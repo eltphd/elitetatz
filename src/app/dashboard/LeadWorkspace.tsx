@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { LeadActions, type QuoteHint } from './LeadActions'
 import { AssistantPanel } from './AssistantPanel'
+import { WordingHelper } from './WordingHelper'
 import { NotesPanel, type NoteView } from './NotesPanel'
 import { ConversationViewer } from './ConversationViewer'
 import type { ThreadMessage } from '@/components/InquiryThread'
@@ -39,12 +40,28 @@ export function LeadWorkspace(p: LeadWorkspaceProps) {
   const [questionKey, setQuestionKey] = useState(0)
   const canAskMore = p.status === 'pending' || p.status === 'info_requested'
 
+  const open = !['rejected', 'cancelled', 'completed'].includes(p.status)
+
   return (
     <>
+      {open && (
+        <WordingHelper
+          matchId={p.matchId}
+          clientName={p.clientName}
+          canReply={p.canReply}
+          onUse={(t) => {
+            setDraft(t); setDraftKey((k) => k + 1)
+            // Bring the reply box into view: that is where she reads it over and sends.
+            if (typeof document !== 'undefined') document.getElementById(`thread-${p.matchId}`)?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+          }}
+          demo={p.demo}
+        />
+      )}
       {p.actionable && (
         <LeadActions
           matchId={p.matchId}
           status={p.status as 'pending' | 'info_requested' | 'accepted' | 'paid' | 'booked' | 'completed'}
+          clientName={p.clientName}
           dateRequest={p.dateRequest}
           appointmentAt={p.appointmentAt}
           suggestedQuestion={p.suggestedQuestion}
