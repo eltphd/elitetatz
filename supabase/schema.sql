@@ -247,12 +247,17 @@ create table artist_notifications (
   recipient text,
   kind text,
   ref text,
+  -- migration 020: Resend's delivery receipt for the attempt
+  delivery_status text,
+  delivered_at timestamp with time zone,
   constraint artist_notifications_pkey PRIMARY KEY (id),
   constraint artist_notifications_artist_id_fkey FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE,
   constraint artist_notifications_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
 );
 alter table artist_notifications enable row level security;
 CREATE INDEX artist_notifications_status_time_idx ON public.artist_notifications USING btree (status, created_at DESC);
+CREATE INDEX artist_notifications_provider_idx ON public.artist_notifications USING btree (provider_id) WHERE (provider_id IS NOT NULL);
+CREATE INDEX artist_notifications_delivered_idx ON public.artist_notifications USING btree (delivered_at DESC) WHERE (delivered_at IS NOT NULL);
 
 -- client_consents
 create table client_consents (
@@ -449,6 +454,19 @@ create table hold_events (
 );
 CREATE INDEX hold_events_sent_idx ON public.hold_events USING btree (sent_at DESC);
 alter table hold_events enable row level security;
+
+-- probe_runs (migration 019): one row per daily synthetic inquiry, with its verdict; the 7 PM digest reads today's
+create table probe_runs (
+  id bigserial not null,
+  ran_at timestamp with time zone default now() not null,
+  ok boolean not null,
+  checks jsonb default '{}'::jsonb not null,
+  error text,
+  ref text,
+  constraint probe_runs_pkey PRIMARY KEY (id)
+);
+CREATE INDEX probe_runs_ran_at_idx ON public.probe_runs USING btree (ran_at DESC);
+alter table probe_runs enable row level security;
 
 -- reviews
 create table reviews (

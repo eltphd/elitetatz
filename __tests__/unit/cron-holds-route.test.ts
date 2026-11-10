@@ -5,6 +5,8 @@ import { fakeDb } from '../helpers/fake-db'
 
 const run = jest.fn().mockResolvedValue({ checked: 0, due: 0, sent: [], skipped: null })
 jest.mock('@/lib/holds', () => ({ runHolds: (...a: unknown[]) => run(...a) }))
+const sweep = jest.fn().mockResolvedValue({ unconfirmed: 0, skipped: null })
+jest.mock('@/lib/delivery', () => ({ sweepReceipts: (...a: unknown[]) => sweep(...a) }))
 let db: ReturnType<typeof fakeDb>
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => db.db }))
 jest.mock('@/lib/channels', () => ({ artistForInbound: async () => ({ id: 'artist-1', payout_preference: null }) }))
@@ -32,6 +34,16 @@ describe('GET /api/cron/holds', () => {
     const res = await get('Bearer cron-secret')
     expect(res.status).toBe(200)
     expect(run).toHaveBeenCalledWith(db.db, 'artist-1')
-    expect(await res.json()).toMatchObject({ sent: [] })
+    expect(await res.json()).toMatchObject({ sent: [], receipts: { unconfirmed: 0 } })
+  })
+
+  test('the receipt sweep runs on every tick, and a sweep that throws does not stop the holds', async () => {
+    await get('Bearer cron-secret')
+    expect(sweep).toHaveBeenCalledWith(db.db)
+    sweep.mockRejectedValueOnce(new Error('boom'))
+    const res = await get('Bearer cron-secret')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ sent: [], receipts: { error: 'Receipt sweep failed' } })
+    expect(run).toHaveBeenCalledTimes(2)
   })
 })

@@ -137,7 +137,7 @@ describe('hold timers and her mailbox', () => {
   })
   it('the timers pick up again when the client writes where the portal can see', () => {
     const thread = [m('artist', 78, { mailbox: 'reply' }), m('client', 40)]
-    expect(holds([lead({ artist_responded_at: ago(78) })], thread)).toEqual(['A1'])
+    expect(holds([lead({ artist_responded_at: ago(78) })], thread)).toEqual(['A1', 'A1C'])
   })
   it('her taps in the portal stay timed: a quote with no deposit still gets hold C', () => {
     const accepted = lead({ status: 'accepted', artist_responded_at: ago(80) })

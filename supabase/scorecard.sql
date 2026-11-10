@@ -4,6 +4,10 @@
 --
 -- Columns: week (Monday), leads by channel, median hours to Lacey's first
 -- reply, how many she quoted, how many paid a deposit, how many were passed.
+--
+-- The daily synthetic probe (/api/cron/probe, migration 019) submits one
+-- inquiry a day tagged `test-probe`. It is not a client and is left out of
+-- every count here, by the tag in the brief and by the source label.
 
 with leads as (
   select
@@ -15,6 +19,7 @@ with leads as (
     m.artist_responded_at
   from matches m
   where m.created_at >= now() - interval '12 weeks'
+    and coalesce(m.client_brief, '') not like '%"found_via":"test-probe"%'
 ),
 by_week as (
   select
@@ -35,6 +40,12 @@ by_week as (
   group by week
 )
 select * from by_week order by week desc;
+
+-- Where clients found Lacey (inquiry_sources, written by the form route), minus the probe.
+-- select date_trunc('week', created_at)::date as week, source, count(*)
+-- from inquiry_sources
+-- where created_at >= now() - interval '12 weeks' and source <> 'test-probe'
+-- group by 1, 2 order by 1 desc, 3 desc;
 
 -- Files and channel health over the same window.
 -- select channel, count(*) as events, count(*) filter (where outcome = 'error') as errors,
