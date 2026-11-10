@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
-import { ingest, type IngestOutcome, type NormalizedInbound } from '@/lib/inbound/ingest'
+import { ingest, recordArtistReply, type IngestOutcome, type NormalizedInbound } from '@/lib/inbound/ingest'
 
 // Email into the inbox, by way of Resend's receiving API (the same mechanism
 // that answers hello@woopsi.ink). Lacey's Gmail forwards an inquiry, or a
@@ -145,6 +145,51 @@ export function ownAddresses(): Set<string> {
   return set
 }
 
+// The artist's own mailbox: where she reads and answers clients. Narrower than
+// ownAddresses() on purpose. The sending address, the operator's copy and the
+// intake address are ours but they are not her inbox, so mail seen there is
+// not mail she has seen.
+export function artistMailboxes(): Set<string> {
+  const set = new Set<string>()
+  const add = (v: string | undefined | null) => { if (v) set.add(bareAddress(v)) }
+  add(ARTIST_CONFIG.email)
+  add(process.env.ARTIST_NOTIFICATION_EMAIL)
+  return set
+}
+
+const ADDRESS = /[^\s<>,;:"'()]+@[^\s<>,;:"'()]+\.[^\s<>,;:"'()]+/g
+
+/**
+ * Did this message pass through the artist's own mailbox before it reached us?
+ * If so she already has it, and emailing her about it would be a second email
+ * about the same thing (Erica's rule, Nov 9 2026: never).
+ *
+ *   'forwarded'  she sent it to us herself (a forward from her address)
+ *   'delivered'  it was addressed or delivered to her and came on to us:
+ *                her mail's auto-forward (To is still her; Gmail adds
+ *                X-Forwarded-For), or a client who wrote to her and to us
+ *   null         it came to us only (the client wrote to the intake address,
+ *                or the operator forwarded it): she needs her one email
+ */
+export function alreadyInArtistMailbox(mail: ReceivedEmail): 'forwarded' | 'delivered' | null {
+  const hers = artistMailboxes()
+  if (hers.has(bareAddress(mail.from))) return 'forwarded'
+  const fields = [
+    ...(Array.isArray(mail.to) ? mail.to : []),
+    header(mail, 'to'),
+    header(mail, 'cc'),
+    header(mail, 'delivered-to'),
+    header(mail, 'x-original-to'),
+    header(mail, 'x-forwarded-for'),
+  ]
+  for (const field of fields) {
+    for (const addr of String(field ?? '').toLowerCase().match(ADDRESS) ?? []) {
+      if (hers.has(addr)) return 'delivered'
+    }
+  }
+  return null
+}
+
 // Plain text out of the message: the text part, else the HTML with tags gone.
 export function textBody(mail: Pick<ReceivedEmail, 'text' | 'html'>): string {
   if (mail.text && mail.text.trim()) return mail.text.replace(/\r\n/g, '\n').trim()
@@ -242,11 +287,65 @@ export function normalizeEmail(mail: ReceivedEmail, attachments: Array<{ url: st
     subject,
     attachments,
     meta: { message_id: mail.message_id ?? null },
+    // Read from the envelope as it arrived, before any forward was unwrapped.
+    artistHasIt: alreadyInArtistMailbox(mail),
+  }
+}
+
+export interface ArtistReply {
+  externalId: string
+  /** Who she wrote to, ours and hers left out: the client, almost always one address. */
+  clients: string[]
+  text: string
+  subject: string | null
+  /** True when the receiving server vouched for the sender (DMARC or aligned DKIM pass). */
+  verified: boolean
+}
+
+function recipients(mail: ReceivedEmail): string[] {
+  const fields = [...(Array.isArray(mail.to) ? mail.to : []), header(mail, 'to'), header(mail, 'cc')]
+  const out = new Set<string>()
+  for (const field of fields) for (const addr of String(field ?? '').toLowerCase().match(ADDRESS) ?? []) out.add(addr)
+  return [...out]
+}
+
+// The receiving server's verdict on who really sent this. Her address is easy
+// to type into a From line, so her words are only shown in a client's thread
+// when the mail passed DMARC, or DKIM signed by her own domain.
+function senderVerified(mail: ReceivedEmail): boolean {
+  const results = header(mail, 'authentication-results').toLowerCase()
+  if (!results) return false
+  if (/\bdmarc=pass\b/.test(results)) return true
+  const domain = bareAddress(mail.from).split('@')[1] ?? ''
+  return Boolean(domain) && /\bdkim=pass\b/.test(results) && results.includes(`header.d=${domain}`)
+}
+
+/**
+ * Her own reply to a client, copied to us because the intake address sits
+ * beside the client's in the Reply-To of what we sent her (lib/notify.ts,
+ * artistReplyTo). It is from her mailbox and written to someone who is not
+ * us. A forward is different: it is addressed to us alone, and stays on the
+ * forward path even when her mail app marks replies "Original Message".
+ */
+export function readArtistReply(mail: ReceivedEmail): ArtistReply | null {
+  if (isAutomated(mail)) return null
+  if (!artistMailboxes().has(bareAddress(mail.from))) return null
+  const own = ownAddresses()
+  const clients = recipients(mail).filter((a) => !own.has(a))
+  if (!clients.length) return null
+  return {
+    externalId: `resend:${mail.id}`,
+    clients,
+    text: stripQuoted(textBody(mail)),
+    subject: mail.subject ?? null,
+    verified: senderVerified(mail),
   }
 }
 
 export async function handleInboundEmail(db: SupabaseClient, emailId: string): Promise<IngestOutcome> {
   const mail = await fetchReceived(emailId)
+  const reply = readArtistReply(mail)
+  if (reply) return recordArtistReply(db, reply)
   const attachments = await listAttachments(emailId)
   const normalized = normalizeEmail(mail, attachments)
   if ('ignored' in normalized) return { outcome: 'ignored', reason: normalized.ignored }

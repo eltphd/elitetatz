@@ -64,6 +64,16 @@ describe('notifyArtist', () => {
     expect(send.mock.calls[1][0].to).toBe('ops@example.com')
     expect(send.mock.calls[1][0].text).toContain('FAILED')
   })
+
+  test('skip: nothing is sent to her, the operator copy or anyone, and the log says why', async () => {
+    process.env.ARTIST_NOTIFICATION_CC = 'ops@example.com'
+    const r = await notifyArtist({ kind: 'New email inquiry', ref: 'match-7', matchId: 'match-7', replyTo: 'ana@example.com', subject: 'Email: Ana', text: 't', sms: 'x', skip: 'already in her mailbox: she forwarded this message herself' })
+    expect(r).toEqual({ emailed: false, skipped: true, logId: 'log-9' })
+    expect(send).not.toHaveBeenCalled()
+    expect(alertOperator).not.toHaveBeenCalled()
+    const [log] = writes(db.calls, 'artist_notifications', 'insert')
+    expect(log.payload).toMatchObject({ match_id: 'match-7', kind: 'New email inquiry', status: 'skipped', error: 'already in her mailbox: she forwarded this message herself', provider_id: null })
+  })
 })
 
 describe('notifyClient', () => {

@@ -68,6 +68,8 @@ export interface HoldMessage {
   sender: 'artist' | 'client' | 'system'
   body: string
   created_at: string
+  /** `mailbox` is set on a message that lives in her own mailbox (inbound/ingest.ts). */
+  meta?: Record<string, unknown> | null
 }
 
 export interface Due {
@@ -110,6 +112,7 @@ export function dueHolds(matches: HoldMatch[], messages: HoldMessage[], now: num
     let lastArtist = 0
     let lastClient = 0
     let lastDateRequest = 0
+    let lastWord: HoldMessage | null = null
     for (const m of thread) {
       const t = ms(m.created_at)
       if (m.sender === 'artist') lastArtist = Math.max(lastArtist, t)
@@ -117,13 +120,26 @@ export function dueHolds(matches: HoldMatch[], messages: HoldMessage[], now: num
         lastClient = Math.max(lastClient, t)
         if (m.body.startsWith('Date request:')) lastDateRequest = Math.max(lastDateRequest, t)
       }
+      if (m.sender !== 'system' && (!lastWord || t >= ms(lastWord.created_at))) lastWord = m
     }
     const artistActed = lastArtist > 0 || Boolean(match.artist_responded_at)
     const lastArtistAt = Math.max(lastArtist, ms(match.artist_responded_at))
 
+    // The conversation has moved into her mailbox: the last word is a client
+    // email that reached her directly, or her own reply from her mail app.
+    // Whoever answers next can do it there without the portal seeing it, so
+    // the portal does not time what it cannot see. A wrong "still with Lacey"
+    // to a client she already answered, or a nudge to her about it, costs
+    // more trust than a missed reminder. The timers pick up again the moment
+    // either side writes somewhere the portal does see (the inquiry page, the
+    // form, a DM, or her inbox here). Quotes, deposits and dates (C, D, E)
+    // are her own taps in the portal and stay timed.
+    const inHerMailbox = Boolean(lastWord?.meta && (lastWord.meta as { mailbox?: unknown }).mailbox)
+    if (inHerMailbox && ['pending', 'info_requested'].includes(match.status)) continue
+
     // A: the client is waiting on Lacey — a new lead she has not touched, or a
     // client message newer than her last one, before any deposit.
-    if (WAITING_ON_ARTIST.includes(match.status)) {
+    if (WAITING_ON_ARTIST.includes(match.status) && !inHerMailbox) {
       const since = !artistActed ? ms(match.created_at) : lastClient > lastArtistAt ? lastClient : 0
       if (since) {
         push('A1', match, since)
@@ -322,7 +338,7 @@ export async function runHolds(db: SupabaseClient, artistId: string, now = Date.
   const ids = matches.map((m) => m.id)
 
   const [{ data: msgs }, { data: events }] = await Promise.all([
-    db.from('match_messages').select('match_id, sender, body, created_at').in('match_id', ids).order('created_at', { ascending: true }),
+    db.from('match_messages').select('match_id, sender, body, created_at, meta').in('match_id', ids).order('created_at', { ascending: true }),
     db.from('hold_events').select('match_id, hold').in('match_id', ids),
   ])
   const already = new Set(((events ?? []) as { match_id: string; hold: string }[]).map((e) => `${e.match_id}:${e.hold}`))

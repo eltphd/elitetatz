@@ -12,8 +12,9 @@ interface SendEmailArgs {
   html: string
   text?: string
   /** Where a reply from the recipient's mail app goes. Defaults to the artist, so
-   *  a client who hits Reply on anything we send reaches her, never a dead end. */
-  replyTo?: string | null
+   *  a client who hits Reply on anything we send reaches her, never a dead end.
+   *  A list puts every address on the To line of the reply. */
+  replyTo?: string | string[] | null
   from?: string
 }
 
