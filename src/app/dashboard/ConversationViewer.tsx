@@ -76,7 +76,7 @@ export function ConversationViewer({ matchId, conversationId, thread, clientName
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-3">
+    <div id={`thread-${matchId}`} className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-3">
       {conversationId && (
         <div>
           <button

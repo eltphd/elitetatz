@@ -21,8 +21,8 @@ describe('ExampleCard', () => {
     render(<ExampleCard />)
     expect(screen.getByText(/Maya is not real/)).toBeInTheDocument()
     expect(screen.getByText('Maya R.', { exact: false })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Accept/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /More info/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Send a quote/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Ask a question/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Pass$/ })).toBeInTheDocument()
   })
 

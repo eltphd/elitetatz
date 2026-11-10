@@ -5,6 +5,7 @@ import { depositLinkFor } from '@/lib/deposit'
 import { track } from '@/lib/analytics'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { chatwootReply } from '@/lib/inbound/chatwoot'
+import { isOriginalArt, originalArtLine } from '@/lib/addons'
 
 // The artist's three buttons: Accept (quote + dates), Need more info, Pass.
 // Auth is the artist's session; match reads/updates go through RLS. Thread
@@ -12,7 +13,10 @@ import { chatwootReply } from '@/lib/inbound/chatwoot'
 // service role so a missing policy never swallows the record.
 //
 // Body: { matchId, action: 'accept' | 'more_info' | 'decline' | 'deposit_received',
-//         price_cents?, proposed_dates?, message? }
+//         price_cents?, proposed_dates?, message?,
+//         design_fee_cents?, original_art?: 'digital' | 'paper', original_art_cents? }
+// The two extras ride along with a quote: drafts before the session, and an
+// original of the piece to keep. Both are optional and priced by her.
 // deposit_received: the shop collected the deposit outside the platform
 // (e.g. AION's Square checkout) and the artist confirms it by hand.
 
@@ -53,6 +57,8 @@ export async function POST(req: Request) {
   const priceCents = Number(body.price_cents)
   const designFeeCents = body.design_fee_cents == null || body.design_fee_cents === '' ? null : Number(body.design_fee_cents)
   const appointmentAt = str(body.appointment_at)
+  const originalArt = isOriginalArt(body.original_art) ? body.original_art : null
+  const originalArtCents = body.original_art_cents == null || body.original_art_cents === '' ? null : Number(body.original_art_cents)
 
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!ACTIONS.includes(action)) return Response.json({ error: 'Unknown action' }, { status: 400 })
@@ -61,6 +67,9 @@ export async function POST(req: Request) {
   }
   if (action === 'accept' && designFeeCents != null && (!Number.isFinite(designFeeCents) || designFeeCents < 0)) {
     return Response.json({ error: 'Design fee must be a number' }, { status: 400 })
+  }
+  if (action === 'accept' && originalArtCents != null && (!Number.isFinite(originalArtCents) || originalArtCents < 0)) {
+    return Response.json({ error: 'The price for the original must be a number' }, { status: 400 })
   }
   if (action === 'confirm_date') {
     const t = Date.parse(appointmentAt)
@@ -104,6 +113,7 @@ export async function POST(req: Request) {
     threadBody = [
       `Accepted — quote ${money(priceCents)}.`,
       designFeeCents ? `Design drafts ahead of the session: ${money(designFeeCents)} (separate from the deposit).` : null,
+      originalArtLine(originalArt, originalArtCents),
       proposedDates ? `Proposed dates: ${proposedDates}` : null,
       message || null,
     ].filter(Boolean).join('\n')
@@ -196,7 +206,7 @@ ${reviewUrl}
 ${firstName} reviewed your idea (${concept}) and wants to do it.
 
 Quote: ${quote}
-${designFeeCents ? `Design drafts ahead of your session: ${money(designFeeCents)} (separate from the deposit; ${firstName} will send that payment link).\n` : ''}${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
+${designFeeCents ? `Design drafts ahead of your session: ${money(designFeeCents)} (separate from the deposit; ${firstName} will send that payment link).\n` : ''}${originalArtLine(originalArt, originalArtCents) ? `${originalArtLine(originalArt, originalArtCents)}\n` : ''}${proposedDates ? `Proposed dates: ${proposedDates}\n` : ''}${message ? `\nHer note: "${message}"\n` : ''}
 ${deposit ? (external ? `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit through ${ARTIST_CONFIG.depositCollectedBy}'s secure checkout:\n${deposit}\nOnce it's in, ${firstName} marks it received and confirms your date on your inquiry page.` : `Hold your spot with the ${money(ARTIST_CONFIG.depositCents)} deposit:\n${deposit}`) : `${firstName} will send your ${money(ARTIST_CONFIG.depositCents)} deposit link separately to hold the spot.`}
 
 ${ARTIST_CONFIG.depositPolicy}

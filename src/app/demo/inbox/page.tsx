@@ -110,6 +110,23 @@ const LEADS: Lead[] = [
       budget_max_cents: 60000, has_reference: false, creative_freedom: true, subject: 'Round two!',
     }),
   },
+  {
+    // The case that confused her on Nov 10: she answered from her own email,
+    // then opened the inbox. The card has to say so.
+    ...base,
+    id: 'demo-6666-aaaa-bbbb-000000000006',
+    status: 'pending',
+    channel: 'web',
+    created_at: at(26 * H),
+    client_name: 'Ana Ruiz',
+    client_email: 'ana.ruiz@example.com',
+    client_phone: null,
+    ai_summary: 'Small watercolor fern on the outer ankle',
+    client_brief: JSON.stringify({
+      concept: 'Small watercolor fern on the outer ankle', styles: ['watercolor'], placement: 'outer ankle', size: '2 inches',
+      budget_min_cents: 40000, budget_max_cents: 70000, has_reference: false, found_via: 'instagram', source: 'rawsunart-form',
+    }),
+  },
 ]
 
 // Who Lacey already knows. Read from her records on the live inbox; fixed here.
@@ -118,6 +135,10 @@ const HISTORY: Record<string, ClientHistory> = {
 }
 
 const THREADS: Record<string, ThreadMessage[]> = {
+  'demo-6666-aaaa-bbbb-000000000006': [
+    { id: 't20', sender: 'system', body: 'Inquiry sent from the rawsunart.com form. Where: The studio (AION Tattoo).', created_at: at(26 * H) },
+    { id: 't21', sender: 'artist', channel: 'email', mailbox: 'reply', body: "Hi Ana! Yes, I'd love to do this. Are weekday afternoons okay for you?", created_at: at(24 * H) },
+  ],
   [LEADS[0].id]: [
     { id: 't1', sender: 'system', body: 'Inquiry arrived by instagram dm.', created_at: at(2 * H) },
     { id: 't2', sender: 'client', channel: 'instagram', body: "hi!! i've been following your watercolor stuff forever. i want a peony on my outer forearm, maybe 4 inches? it's for my mom, she grew them. i have a reference but i like it loose, more of a color splash than the exact flower. budget is around $500. sending two pics 🌸", created_at: at(2 * H) },
@@ -175,7 +196,7 @@ export default function DemoInboxPage() {
   for (const lead of LEADS) groups[groupOf(lead, THREADS[lead.id] ?? [])].push(lead)
   const sections: { key: Group; title: string; hint?: string; pulse?: boolean }[] = [
     { key: 'needs_you', title: 'Needs you', hint: 'New inquiries and client replies', pulse: true },
-    { key: 'waiting', title: 'Waiting on client', hint: 'Questions out, quotes unpaid' },
+    { key: 'waiting', title: 'Waiting on client', hint: 'You answered, asked or quoted' },
     { key: 'booked', title: 'Booked', hint: 'Deposit in' },
     { key: 'closed', title: 'Closed' },
   ]
@@ -221,7 +242,7 @@ export default function DemoInboxPage() {
 
         <div className="mb-6 bg-[#141414] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#9b9b9b] leading-relaxed">
           <p className="text-white font-semibold mb-1">What you are looking at</p>
-          <p>Five inquiries that came in four different ways: an Instagram DM, two emails, the website concierge, a text. Each is one card with the client&apos;s words, their reference photos, what is still open, a starting number from your price bands, your private notes, and an assistant that has read all of it. One of them is someone you have tattooed before, and the card says so. Tap anything.</p>
+          <p>Six inquiries that came in five different ways: an Instagram DM, two emails, the website form, the website concierge, a text. Each is one card with the client&apos;s words, their reference photos, what is still open, a starting number from your price bands, your private notes, and an assistant that has read all of it. One of them is someone you have tattooed before, and the card says so. Tap anything.</p>
           <p className="mt-2">Nothing changes in what you do now. Email still lands in Gmail, DMs stay in Instagram, texts still ring your phone. This is a copy of all of it in one place, with the thinking done. Use it alongside, and see which one you reach for.</p>
         </div>
 

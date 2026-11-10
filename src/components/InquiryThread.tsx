@@ -15,6 +15,8 @@ export interface ThreadMessage {
   created_at: string
   /** Where the message came from or went; shown on the bubble when it is not the website. */
   channel?: string | null
+  /** Set when the message lives in her own mailbox: 'reply' (hers), 'forwarded' or 'delivered' (the client's). */
+  mailbox?: string | null
 }
 
 export function formatWhen(iso: string): string {
