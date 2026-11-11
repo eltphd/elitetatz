@@ -20,7 +20,8 @@ const TAPS: { name: string; button: string; what: string }[] = [
 
 const HOLDS: { at: string; what: string; tone?: 'warn' }[] = [
   { at: '0 h', what: 'You get an email: a card is waiting.' },
-  { at: '36 h', what: 'The client hears “still with Lacey, by Thursday.” You get a nudge.' },
+  { at: '24 h', what: 'You get one email. Reply to it and the client has your answer.' },
+  { at: '36 h', what: 'The client hears “still with Lacey, by Thursday.”' },
   { at: '72 h', what: 'Both again, and Erica is copied.', tone: 'warn' },
   { at: '14 d', what: 'You are told once. Nothing is closed for you.' },
 ]

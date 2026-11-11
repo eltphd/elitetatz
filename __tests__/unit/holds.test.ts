@@ -44,17 +44,34 @@ beforeEach(() => {
 })
 
 describe('dueHolds', () => {
-  test('A1 at 36 h for a new lead nobody has touched; A2 takes over at 72 h', () => {
-    expect(dueHolds([lead()], [], NOW).map((d) => d.hold)).toEqual(['A1'])
-    expect(dueHolds([lead({ created_at: ago(80 * H) })], [], NOW).map((d) => d.hold)).toEqual(['A2'])
-    expect(dueHolds([lead({ created_at: ago(20 * H) })], [], NOW)).toHaveLength(0)
+  test('her nudge (A1) opens at 24 h; the client’s line (A1C) not until 36 h; A2 takes over both at 72 h', () => {
+    const holds = (hours: number) => dueHolds([lead({ created_at: ago(hours * H) })], [], NOW).map((d) => d.hold)
+    expect(holds(20)).toEqual([])
+    expect(holds(23)).toEqual([])
+    // Only her side moved to 24 h. The site tells clients they hear within 48 hours,
+    // so "still with Lacey" does not go out at 24.
+    expect(holds(24)).toEqual(['A1'])
+    expect(holds(35)).toEqual(['A1'])
+    expect(holds(36)).toEqual(['A1', 'A1C'])
+    expect(holds(71)).toEqual(['A1', 'A1C'])
+    expect(holds(72)).toEqual(['A2'])
+    expect(holds(80)).toEqual(['A2'])
+    // A client reply newer than Lacey's last message restarts the clock.
+    const m = lead({ status: 'info_requested', created_at: ago(10 * D), artist_responded_at: ago(5 * D) })
+    expect(dueHolds([m], [msg('artist', 5 * D, 'How big?'), msg('client', 26 * H, 'About a palm')], NOW).map((d) => d.hold)).toEqual(['A1'])
+  })
+
+  test('the daily probe’s inquiry is never a hold', () => {
+    const probe = lead({ created_at: ago(30 * H), client_brief: JSON.stringify({ found_via: 'test-probe', concept: 'Daily system check' }) })
+    expect(dueHolds([probe], [], NOW)).toHaveLength(0)
+    expect(dueHolds([lead({ created_at: ago(30 * H), client_brief: JSON.stringify({ found_via: 'instagram' }) })], [], NOW)).toHaveLength(1)
   })
 
   test('A counts from the client’s last message when they wrote after Lacey', () => {
     const m = lead({ status: 'info_requested', created_at: ago(10 * D), artist_responded_at: ago(5 * D) })
     const thread = [msg('artist', 5 * D, 'How big?'), msg('client', 40 * H, 'About a palm')]
     const due = dueHolds([m], thread, NOW)
-    expect(due.map((d) => d.hold)).toEqual(['A1'])
+    expect(due.map((d) => d.hold)).toEqual(['A1', 'A1C'])
     expect(due[0].since).toBe(ago(40 * H))
   })
 
@@ -96,11 +113,63 @@ describe('dueHolds', () => {
 })
 
 describe('runHolds', () => {
-  test('A1: records the hold, writes the thread line, tells the client and Lacey, no Slack', async () => {
-    const t = tick([lead()])
+  test('A1 is one email to Lacey with the client as reply-to, so answering it is the reply', async () => {
+    const t = tick([lead({ created_at: ago(26 * H) })])
     const r = await t.run()
     expect(r.sent).toEqual([{ match_id: 'match-1', hold: 'A1' }])
-    expect(writes(t.db.calls, 'hold_events', 'insert')[0].payload).toEqual({ match_id: 'match-1', hold: 'A1' })
+    expect(notifyArtist).toHaveBeenCalledTimes(1)
+    const notice = notifyArtist.mock.calls[0][0]
+    expect(notice).toMatchObject({ kind: 'Hold A1', matchId: 'match-1', replyTo: 'j@example.com' })
+    expect(notice.subject).toBe('Waiting a day: a small moth')
+    expect(notice.text).toContain('Reply to this email and it goes straight to Jordan (j@example.com)')
+    expect(notice.text).toContain('Nothing has been sent to Jordan; at 36 hours they are told it is still with you.')
+    // At 24 hours the client hears nothing: no thread line, no email, no DM.
+    expect(writes(t.db.calls, 'hold_events', 'insert').map((c) => c.payload)).toEqual([{ match_id: 'match-1', hold: 'A1' }])
+    expect(writes(t.db.calls, 'match_messages', 'insert')).toHaveLength(0)
+    expect(notifyClient).not.toHaveBeenCalled()
+    expect(chatwoot).not.toHaveBeenCalled()
+    expect(slack).not.toHaveBeenCalled()
+  })
+
+  test('at 36 h the client’s line goes under its own key, and she is not emailed a second time', async () => {
+    // Her nudge went yesterday; today only the client's side is due.
+    const t = tick([lead()], [], [{ match_id: 'match-1', hold: 'A1' }])
+    const r = await t.run()
+    expect(r.sent).toEqual([{ match_id: 'match-1', hold: 'A1C' }])
+    expect(writes(t.db.calls, 'hold_events', 'insert').map((c) => c.payload)).toEqual([{ match_id: 'match-1', hold: 'A1C' }])
+    expect(notifyClient).toHaveBeenCalledTimes(1)
+    expect(notifyClient.mock.calls[0][0].text).toContain('still with Lacey')
+    expect(notifyArtist).not.toHaveBeenCalled()
+  })
+
+  test('in the 7 PM digest hour the A holds still tell the client and write their record, but Lacey gets nothing: the digest is her one email', async () => {
+    const sevenPm = Date.parse('2026-11-11T00:00:00Z') // 7 PM EST
+    const late = (msBack: number) => new Date(sevenPm - msBack).toISOString()
+    const a1 = lead({ id: 'a1', created_at: late(40 * H), updated_at: late(40 * H) })
+    const a2 = lead({ id: 'a2', created_at: late(80 * H), updated_at: late(80 * H) })
+    const e = lead({ id: 'e', status: 'paid', created_at: late(5 * D), booked_at: late(4 * D), date_request: 'Dec 12', updated_at: late(50 * H) })
+    const db = fakeDb((c: Call) => {
+      if (c.table === 'matches') return { data: [a1, a2, e] }
+      if (c.table === 'match_messages' && c.op === 'select') return { data: [msg('client', 50 * H, 'Date request: Dec 12', 'e')] }
+      if (c.table === 'hold_events' && c.op === 'select') return { data: [] }
+      return { data: null }
+    })
+    const r = await runHolds(db.db, 'artist-1', sevenPm)
+    expect(r.sent.map((s) => s.hold).sort()).toEqual(['A1', 'A1C', 'A2', 'E'])
+    expect(writes(db.calls, 'hold_events', 'insert')).toHaveLength(4)
+    expect(notifyClient).toHaveBeenCalledTimes(3) // A1C, A2 and E; A1 has no client side
+    // Only E, which the digest does not cover, reaches her now.
+    expect(notifyArtist).toHaveBeenCalledTimes(1)
+    expect(notifyArtist.mock.calls[0][0].kind).toBe('Hold E')
+    expect(slack).toHaveBeenCalledTimes(1) // A2's YOUR MOVE is for Erica, not Lacey
+  })
+
+  test('a lead first seen past 36 h gets both sides on one tick: one email to her, the thread line and the client’s note, no Slack', async () => {
+    const t = tick([lead()])
+    const r = await t.run()
+    expect(r.sent).toEqual([{ match_id: 'match-1', hold: 'A1' }, { match_id: 'match-1', hold: 'A1C' }])
+    expect(writes(t.db.calls, 'hold_events', 'insert').map((c) => c.payload)).toEqual([{ match_id: 'match-1', hold: 'A1' }, { match_id: 'match-1', hold: 'A1C' }])
+    expect(writes(t.db.calls, 'match_messages', 'insert')).toHaveLength(1)
     const line = writes(t.db.calls, 'match_messages', 'insert')[0].payload as Record<string, unknown>
     expect(line).toMatchObject({ match_id: 'match-1', sender: 'system', channel: 'system' })
     expect(String(line.body)).toContain('still with Lacey')
@@ -108,6 +177,7 @@ describe('runHolds', () => {
     expect(notifyClient.mock.calls[0][0].text).toContain('/inquiry/match-1?t=')
     expect(notifyArtist).toHaveBeenCalledTimes(1)
     expect(notifyArtist.mock.calls[0][0].text).toContain('/dashboard')
+    expect(notifyArtist.mock.calls[0][0].text).toContain('Jordan is being told it is still with you.')
     expect(slack).not.toHaveBeenCalled()
   })
 
@@ -148,7 +218,7 @@ describe('runHolds', () => {
   })
 
   test('a second tick sends nothing: the recorded hold filters it, and a duplicate key stops it', async () => {
-    const recorded = tick([lead()], [], [{ match_id: 'match-1', hold: 'A1' }])
+    const recorded = tick([lead()], [], [{ match_id: 'match-1', hold: 'A1' }, { match_id: 'match-1', hold: 'A1C' }])
     expect((await recorded.run()).sent).toHaveLength(0)
     expect(notifyClient).not.toHaveBeenCalled()
 

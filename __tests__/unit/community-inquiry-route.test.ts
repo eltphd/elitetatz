@@ -20,6 +20,7 @@ let db: ReturnType<typeof fakeDb> | null
 jest.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => (db ? db.db : null) }))
 
 import { POST } from '@/app/api/community/inquiry/route'
+import { probeKey } from '@/lib/probe-tag'
 
 const ARTIST = { id: 'artist-1', payout_preference: null }
 const form = {
@@ -36,12 +37,17 @@ const form = {
   turnstileToken: 'tok',
 }
 
-const post = (body: unknown, ip = '203.0.113.9') =>
+const post = (body: unknown, ip = '203.0.113.9', extraHeaders: Record<string, string> = {}) =>
   POST(new Request('http://x/api/community/inquiry', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', origin: 'https://rawsunart.com', 'x-forwarded-for': ip },
+    headers: { 'Content-Type': 'application/json', origin: 'https://rawsunart.com', 'x-forwarded-for': ip, ...extraHeaders },
     body: JSON.stringify(body),
   }))
+
+// What /api/cron/probe sends: the label, a run tag dated today, and the tag signed with CRON_SECRET.
+const probeTag = () => `probe-${new Date().toISOString().slice(0, 10)}-0a1b2c3d`
+const probeForm = (tag = probeTag()) => ({ ...form, name: 'System Probe', email: 'system-probe@elitetatz.invalid', concept: `Daily system check ${tag}`, found_via: 'test-probe', probe_tag: tag })
+const signed = (tag = probeTag()) => ({ 'x-probe-key': probeKey(tag)! })
 
 // Each test posts from its own IP so the per-IP limit never trips across tests.
 let ipN = 0
@@ -58,6 +64,7 @@ const normalDb = (extra?: (c: Call) => { data?: unknown; error?: unknown } | und
 beforeEach(() => {
   process.env.NEXT_PUBLIC_APP_URL = 'https://elitetatz.app'
   process.env.MATCH_TOKEN_SECRET = 'a'.repeat(64)
+  process.env.CRON_SECRET = 'cron-secret'
   turnstile = true
   db = normalDb()
   notifyArtist.mockReset().mockResolvedValue({ emailed: true, logId: 'log-1' })
@@ -181,6 +188,85 @@ describe('rawsunart.com inquiry form', () => {
     const [msg] = writes(db!.calls, 'match_messages', 'insert')
     expect(msg.payload).toMatchObject({ match_id: 'match-prior', sender: 'client' })
     expect(notifyClient).not.toHaveBeenCalled()
+  })
+
+  test('the signed daily probe walks the same path, mails nobody, gets no receipt, and is always a fresh inquiry', async () => {
+    notifyArtist.mockResolvedValue({ emailed: false, skipped: true, logId: 'log-1' })
+    const res = await post(probeForm(), nextIp(), signed())
+    expect(res.status).toBe(200)
+    const out = await res.json()
+    expect(out).toMatchObject({ ok: true, portal: true, emailed: false })
+
+    // Her email step is reached and told to send nothing.
+    expect(notifyArtist).toHaveBeenCalledTimes(1)
+    const notice = notifyArtist.mock.calls[0][0]
+    expect(notice).toMatchObject({ kind: 'Probe inquiry', skip: 'probe: not sent by design' })
+    expect(notice.subject).toMatch(/^\[test-probe\] Inquiry:/)
+
+    // No "did this person write today?" lookup: yesterday's probe must not turn today's into a follow-up.
+    expect(db!.calls.filter((c) => c.table === 'matches' && c.op === 'select')).toHaveLength(0)
+    const [match] = writes(db!.calls, 'matches', 'insert')
+    const row = match.payload as Record<string, unknown>
+    expect(JSON.parse(String(row.client_brief))).toMatchObject({ found_via: 'test-probe' })
+    expect(writes(db!.calls, 'inquiry_sources', 'insert')[0].payload).toEqual({ artist_handle: 'rawsunart', source: 'test-probe' })
+    // Only the probe is told which row it made.
+    expect(out.ref).toBe(row.id)
+
+    expect(notifyClient).not.toHaveBeenCalled()
+    expect(alertOperator).not.toHaveBeenCalled()
+  })
+
+  test('"test-probe" without a valid key is a real inquiry: emailed, receipted, stored as direct, never muted', async () => {
+    // A visitor who arrived with ?utm_source=test-probe, or anyone posting the label.
+    const cases: Array<[string, Record<string, unknown>, Record<string, string>]> = [
+      ['no key at all', { ...form, found_via: 'test-probe' }, {}],
+      ['a made-up key', probeForm(), { 'x-probe-key': 'f'.repeat(64) }],
+      ['a real key for a different tag', probeForm(), signed(`probe-${new Date().toISOString().slice(0, 10)}-ffffffff`)],
+      ['a real key for a stale tag', probeForm('probe-2026-01-01-0a1b2c3d'), signed('probe-2026-01-01-0a1b2c3d')],
+    ]
+    for (const [name, body, headers] of cases) {
+      db = normalDb()
+      notifyArtist.mockClear(); notifyClient.mockClear()
+      const res = await post(body, nextIp(), headers)
+      const out = await res.json()
+      expect({ name, out }).toEqual({ name, out: { ok: true, portal: true, emailed: true } }) // no ref
+      const notice = notifyArtist.mock.calls[0][0]
+      expect(notice.skip ?? null).toBeNull()
+      expect(notice.kind).toBe('New inquiry')
+      expect(notice.subject).not.toContain('test-probe')
+      expect(notice.text).toContain('Found you via: direct')
+      const [match] = writes(db!.calls, 'matches', 'insert')
+      const brief = String((match.payload as Record<string, unknown>).client_brief)
+      expect(JSON.parse(brief).found_via).toBe('direct')
+      expect(brief).not.toContain('test-probe')
+      expect(writes(db!.calls, 'inquiry_sources', 'insert')[0].payload).toEqual({ artist_handle: 'rawsunart', source: 'direct' })
+      expect(notifyClient).toHaveBeenCalledTimes(1) // the client gets their receipt
+      // And the repeat lookup runs, as for any client.
+      expect(db!.calls.filter((c) => c.table === 'matches' && c.op === 'select')).toHaveLength(1)
+    }
+  })
+
+  test('an unsigned "test-probe" whose portal write fails still alerts, like any inquiry', async () => {
+    db = normalDb((c) => (c.table === 'matches' && c.op === 'insert' ? { error: { message: 'connection refused' } } : undefined))
+    const res = await post({ ...form, found_via: 'test-probe' }, nextIp())
+    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true })
+    expect(alertOperator).toHaveBeenCalledTimes(1)
+  })
+
+  test('with no CRON_SECRET nothing can be a probe', async () => {
+    const headers = signed()
+    delete process.env.CRON_SECRET
+    const res = await post(probeForm(), nextIp(), headers)
+    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true })
+    expect(notifyArtist.mock.calls[0][0].skip ?? null).toBeNull()
+  })
+
+  test('a signed probe whose portal write fails is not alerted by the route: the probe run reads the rows and reports once', async () => {
+    notifyArtist.mockResolvedValue({ emailed: false, skipped: true, logId: 'log-1' })
+    db = normalDb((c) => (c.table === 'matches' && c.op === 'insert' ? { error: { message: 'connection refused' } } : undefined))
+    // Nothing was mailed (by design) and nothing was saved: a 500, so the probe sees it.
+    expect((await post(probeForm(), nextIp(), signed())).status).toBe(500)
+    expect(alertOperator).not.toHaveBeenCalled()
   })
 
   test('400 when the name, email or idea is missing', async () => {

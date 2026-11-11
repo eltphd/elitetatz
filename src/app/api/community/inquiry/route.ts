@@ -9,6 +9,7 @@ import { alertOperator } from '@/lib/alert'
 import { inquiryUrl, appUrl, linksConfigured } from '@/lib/tokens'
 import { recentInquiry, parseBudget } from '@/lib/inquiry'
 import { cleanLabel } from '@/lib/labels'
+import { PROBE_SOURCE, PROBE_HEADER, verifiedProbe } from '@/lib/probe-tag'
 
 // The inquiry form on rawsunart.com.
 //
@@ -27,6 +28,15 @@ import { cleanLabel } from '@/lib/labels'
 // Rate limits still bound the worst case. If both her email and the portal
 // copy fail, the response is a 500 and rawsunart.com opens the client's mail
 // app addressed to her, so the inquiry still has a way through.
+//
+// The daily probe (/api/cron/probe) posts here with found_via "test-probe"
+// and a key signed with CRON_SECRET. It walks every step above so the check
+// is real, except that nobody is mailed: her email is logged as skipped (so
+// the probe can assert the route got that far) and there is no client
+// receipt. The probe run, not this route, raises the alert when a probe step
+// fails, so a miss is told once. The label alone is not enough: found_via is
+// public input (rawsunart.com fills it from utm_source), so "test-probe"
+// without a valid key is a real inquiry, handled in full, stored as "direct".
 //
 // Public and unauthenticated, so it is rate limited and honeypotted.
 
@@ -73,7 +83,12 @@ export async function POST(req: Request) {
   const where = WHERE[str(body.location, 40)] ?? ''
   const conventionCity = str(body.convention_city, 120)
   const reference = str(body.reference, 2000)
-  const foundVia = cleanLabel(body.found_via, 'direct')
+  const label = cleanLabel(body.found_via, 'direct')
+  const probe = label === PROBE_SOURCE && verifiedProbe(body.probe_tag, req.headers.get(PROBE_HEADER))
+  // The probe's label is reserved for the probe. Anyone else who sends it is a
+  // client like any other, and their source is recorded as direct.
+  const foundVia = label === PROBE_SOURCE && !probe ? 'direct' : label
+  if (label === PROBE_SOURCE && !probe) console.warn('form inquiry: "test-probe" label without a valid probe key; handled as a real inquiry')
   const whereLine = [where, conventionCity].filter(Boolean).join(': ')
 
   // Who this belongs to, and whether it is a repeat. Reads only: if the
@@ -87,7 +102,8 @@ export async function POST(req: Request) {
       const { data, error } = await db.from('artists').select('id, payout_preference').eq('name', ARTIST_CONFIG.name).single()
       if (error || !data) lookupError = `artist lookup: ${error?.message ?? 'not found'}`
       artist = (data as ArtistRow | null) ?? null
-      if (artist) priorMatchId = await recentInquiry(db, artist.id, clientEmail, '')
+      // A probe is always a fresh inquiry: yesterday's row must not make today's a follow-up.
+      if (artist && !probe) priorMatchId = await recentInquiry(db, artist.id, clientEmail, '')
     } catch (err) {
       lookupError = `lookup threw: ${err instanceof Error ? err.message : String(err)}`
     }
@@ -111,13 +127,14 @@ Notes: ${reference || 'none'}
 Found you via: ${foundVia}`
 
   const notice = await notifyArtist({
-    kind: repeat ? 'Inquiry follow-up' : verified ? 'New inquiry' : 'New inquiry (unverified)',
+    kind: probe ? 'Probe inquiry' : repeat ? 'Inquiry follow-up' : verified ? 'New inquiry' : 'New inquiry (unverified)',
     ref: matchId,
     replyTo: clientEmail,
     // A new match does not exist yet; the log row is attached once it does.
     matchId: repeat ? matchId : null,
     artistId: artist?.id ?? null,
-    subject: `${verified ? '' : '[possible bot] '}${repeat ? 'Follow-up' : 'Inquiry'}: ${concept.slice(0, 60)}${placement ? ` (${placement})` : ''}`,
+    skip: probe ? 'probe: not sent by design' : null,
+    subject: `${probe ? '[test-probe] ' : ''}${verified ? '' : '[possible bot] '}${repeat ? 'Follow-up' : 'Inquiry'}: ${concept.slice(0, 60)}${placement ? ` (${placement})` : ''}`,
     text: `${repeat ? 'Another message from someone who sent an inquiry in the last 24 hours. It is added to that thread.' : 'New inquiry from the rawsunart.com form.'}
 ${verified ? '' : '\nThe bot check did not pass for this one. Most often that is a real person whose check expired; treat any links in it with care.\n'}
 ${details}
@@ -202,7 +219,8 @@ Accept with a quote, ask for more info, or pass. Ref ${matchId.slice(0, 8)}.`,
   // ---- 4. The client's receipt --------------------------------------------
   // Only when there is an inquiry page to point at: a repeat already has its
   // link, and without the portal row or the link secret there is no page.
-  if (portal && !repeat && linksConfigured()) {
+  // The probe is not a client and gets none.
+  if (portal && !repeat && !probe && linksConfigured()) {
     await notifyClient({
       email: clientEmail,
       subject: `Your inquiry with ${ARTIST_CONFIG.name} is in`,
@@ -218,7 +236,9 @@ Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONF
   }
 
   // ---- Outcome -------------------------------------------------------------
-  if (!portal && !notice.emailed) {
+  // A probe's misses are reported by the probe run, which reads the rows this
+  // request left (or did not), so nothing is raised twice.
+  if (!portal && !notice.emailed && !probe) {
     // Both copies lost. notifyArtist already alerted on the email; say the
     // portal failed too, and let rawsunart.com hand it to the client's mail app.
     await alertOperator({
@@ -227,12 +247,14 @@ Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONF
     })
     return Response.json({ error: 'Could not deliver the inquiry' }, { status: 500, headers })
   }
-  if (!portal) {
+  if (!portal && !probe) {
     await alertOperator({
       subject: `Form inquiry reached Lacey by email only (ref ${matchId.slice(0, 8)})`,
       text: `The portal could not record a rawsunart.com inquiry: ${portalError ?? 'unknown'}. Lacey has the email copy and can answer from it. Nothing is lost, but the portal and the source count are missing this one. Ref ${matchId.slice(0, 8)}.`,
     })
   }
+
+  if (!portal && !notice.emailed) return Response.json({ error: 'Could not deliver the inquiry' }, { status: 500, headers })
 
   return Response.json(
     {
@@ -240,6 +262,8 @@ Keep that link — it is your inquiry page. When she accepts, the $${ARTIST_CONF
       portal,
       emailed: notice.emailed,
       ...(repeat ? { duplicate: true } : {}),
+      // Only a verified probe is told which row it made, so it checks its own.
+      ...(probe ? { ref: matchId } : {}),
       ...(verified ? {} : { unverified: true }),
     },
     { headers }

@@ -26,7 +26,7 @@ describe('Walkthrough', () => {
     expect(screen.getByText('One card, five taps')).toBeInTheDocument()
     expect(screen.getByText('Nothing slips')).toBeInTheDocument()
     for (const tap of ['Quote', 'Ask', 'Reply', 'Pass', 'Deposit received']) expect(screen.getAllByText(tap).length).toBeGreaterThan(0)
-    for (const at of ['36 h', '72 h', '14 d']) expect(screen.getAllByText(at).length).toBeGreaterThan(0)
+    for (const at of ['24 h', '36 h', '72 h', '14 d']) expect(screen.getAllByText(at).length).toBeGreaterThan(0)
     expect(screen.getByText(/Quiet hours 8 pm to 9 am/)).toBeInTheDocument()
   })
 
