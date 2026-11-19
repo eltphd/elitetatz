@@ -17,6 +17,8 @@ export interface ThreadMessage {
   channel?: string | null
   /** Set when the message lives in her own mailbox: 'reply' (hers), 'forwarded' or 'delivered' (the client's). */
   mailbox?: string | null
+  /** True when the artist pasted this message in herself with "Add a lead": it lives where she got it. */
+  pasted?: boolean | null
 }
 
 export function formatWhen(iso: string): string {

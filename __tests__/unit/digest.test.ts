@@ -3,15 +3,17 @@
  */
 import { fakeDb, type Call } from '../helpers/fake-db'
 
-// The 7 PM digest: one email to Lacey every evening, zero day or not.
+// The 7 PM digest: one email to Lacey on an evening with something new. A quiet
+// day sends her nothing; the operator gets the daily line either way.
 
 const notifyArtist = jest.fn()
 jest.mock('@/lib/notify', () => ({ notifyArtist: (...a: unknown[]) => notifyArtist(...a) }))
 const alertOperator = jest.fn().mockResolvedValue({ emailed: true, slacked: false })
-jest.mock('@/lib/alert', () => ({ alertOperator: (...a: unknown[]) => alertOperator(...a) }))
+const reportToOperator = jest.fn().mockResolvedValue(true)
+jest.mock('@/lib/alert', () => ({ alertOperator: (...a: unknown[]) => alertOperator(...a), reportToOperator: (...a: unknown[]) => reportToOperator(...a) }))
 
-import { digestCopy, summarize, runDigest, easternDayStart, type DigestLead, type ProbeRow, type NudgeRow } from '@/lib/digest'
-import type { HoldMessage } from '@/lib/holds'
+import { digestCopy, operatorCopy, hasNews, summarize, runDigest, easternDayStart, type DigestLead, type ProbeRow, type NudgeRow } from '@/lib/digest'
+import type { HoldMessage, HoldNote } from '@/lib/holds'
 
 const H = 3_600_000
 // Tuesday 2026-11-10, 7:00 PM Eastern (EST = UTC-5).
@@ -28,19 +30,26 @@ const has = (c: Call, col: string, val?: unknown) => c.filters.some(([k, v]) => 
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_APP_URL = 'https://elitetatz.app'
-  notifyArtist.mockReset().mockResolvedValue({ emailed: true, logId: 'log-1' })
+  // Like the real one: a notice with `skip` is logged and not sent.
+  notifyArtist.mockReset().mockImplementation(async (a: { skip?: string | null }) => (a.skip ? { emailed: false, skipped: true, logId: 'log-1' } : { emailed: true, logId: 'log-1' }))
   alertOperator.mockClear()
+  reportToOperator.mockClear()
 })
 
 describe('digest copy', () => {
-  test('a zero day says so, and that the system was checked', () => {
-    const { subject, text } = digestCopy(summarize([], [], PROBE_OK, NOW, [], RECEIPT))
+  test('a zero day is not news: there is nothing to tell her', () => {
+    const s = summarize([], [], PROBE_OK, NOW, [], RECEIPT)
+    expect(hasNews(s)).toBe(false)
+    expect(s.unanswered).toEqual([])
+    expect(s.stillWaiting).toBe(0)
+    // The copy still builds (a forced send uses it) and claims nothing false.
+    const { subject, text } = digestCopy(s)
     expect(subject).toBe('RawSunArt today: 0 new inquiries')
     expect(text.startsWith('Today: 0 new inquiries. System checked OK at 9:00 AM.')).toBe(true)
-    expect(text).toContain('Nothing is waiting on you.')
     expect(text).toContain('https://elitetatz.app/dashboard')
     expect(text).toContain('Tuesday, Nov 10')
-    expect(text).not.toContain('Waiting on you:')
+    expect(text).not.toContain('Waiting on you')
+    expect(text).not.toContain('every evening')
   })
 
   test('"System checked OK" is only said with a fresh delivery receipt; otherwise the line says what was actually checked', () => {
@@ -67,15 +76,78 @@ describe('digest copy', () => {
     const msgs: HoldMessage[] = [{ match_id: 'm4', sender: 'artist', body: 'How big?', created_at: ago(40 * H) }]
     const s = summarize(leads, msgs, PROBE_OK, NOW, [], RECEIPT)
     expect(s.newToday.map((n) => n.first)).toEqual(['Marcus', 'Ana'])
-    expect(s.unanswered).toEqual([{ first: 'Priya', concept: 'fine-line moth', waited: '30 hours', nudgedAt: null }])
+    expect(s.unanswered).toEqual([{ id: 'm3', first: 'Priya', concept: 'fine-line moth', waited: '30 hours', nudgedAt: null }])
+    expect(s.stillWaiting).toBe(0)
+    expect(hasNews(s)).toBe(true)
 
     const { subject, text } = digestCopy(s)
-    expect(subject).toBe('RawSunArt today: 2 new inquiries, 1 waiting on you')
+    expect(subject).toBe('RawSunArt today: 2 new inquiries, 1 waiting a day')
     expect(text.startsWith('Today: 2 new inquiries (Marcus, Ana). 1 has waited on you over 24 hours. System checked OK at 9:00 AM.')).toBe(true)
     expect(text).toContain('• Priya · fine-line moth · waiting 30 hours')
     expect(text).toContain('• Marcus · blackwork sleeve')
-    expect(text).not.toContain('Nothing is waiting on you.')
     expect(text).not.toContain('you were emailed')
+    // One tap for a lead she answered another way, and a promise not to repeat it.
+    expect(text).toMatch(/Already answered Priya another way\? Tap here and the reminders stop: https:\/\/elitetatz\.app\/handled\/m3\?t=/)
+    expect(text).toContain('This is the only evening this note will list them.')
+    expect(text).toContain('Nothing has been sent to them about the wait.')
+  })
+
+  test('a waiting lead is listed once, on the evening it passes a day, and never again', () => {
+    const at = (hours: number) => summarize([lead({ id: 'm3', client_name: 'Priya', created_at: ago(hours * H) })], [], PROBE_OK, NOW, [], RECEIPT)
+    expect(at(23).unanswered).toHaveLength(0)
+    expect(at(24).unanswered).toHaveLength(1)
+    expect(at(47).unanswered).toHaveLength(1)
+    // The next evening and every one after: not listed, not news, only a count for the operator.
+    for (const hours of [48, 54, 72, 200]) {
+      const s = at(hours)
+      expect(s.unanswered).toHaveLength(0)
+      expect(s.stillWaiting).toBe(1)
+      expect(hasNews(s)).toBe(false)
+      expect(digestCopy(s).text).not.toContain('Priya')
+    }
+  })
+
+  test('a lead she noted as handled somewhere else is not waiting on her, tonight or any night', () => {
+    const leads = [lead({ id: 'm3', client_name: 'Amy', created_at: ago(30 * H) })]
+    const msgs: HoldMessage[] = [{ match_id: 'm3', sender: 'client', body: 'I will email ideas', created_at: ago(30 * H) }]
+    const note: HoldNote = { match_id: 'm3', created_at: ago(10 * H) } // "Deposit request sent"
+    const s = summarize(leads, msgs, PROBE_OK, NOW, [], RECEIPT, [note])
+    expect(s.unanswered).toHaveLength(0)
+    expect(s.stillWaiting).toBe(0)
+    expect(hasNews(s)).toBe(false)
+    // Without the note the same lead is listed.
+    expect(summarize(leads, msgs, PROBE_OK, NOW, [], RECEIPT).unanswered).toHaveLength(1)
+    // The client writes again after her note: the wait counts from their new message.
+    const again = summarize(leads, [...msgs, { match_id: 'm3', sender: 'client', body: 'Any update?', created_at: ago(2 * H) }], PROBE_OK, NOW, [], RECEIPT, [note])
+    expect(again.unanswered).toHaveLength(0) // two hours, not thirty
+    expect(again.stillWaiting).toBe(0)
+  })
+
+  test('a lead she pasted in herself is her own working card, not someone waiting on her', () => {
+    const leads = [lead({ id: 'fb', client_name: 'Kevin', created_at: ago(30 * H) })]
+    const msgs: HoldMessage[] = [{ match_id: 'fb', sender: 'client', body: 'Very cool!', created_at: ago(30 * H), meta: { pasted_by: 'artist' } }]
+    const s = summarize(leads, msgs, PROBE_OK, NOW, [], RECEIPT)
+    expect(s.unanswered).toHaveLength(0)
+    expect(s.stillWaiting).toBe(0)
+  })
+
+  test('the operator’s daily line has counts and the system check, never a client’s name or words', () => {
+    const leads = [
+      lead({ id: 'm1', client_name: 'Ana Ruiz', created_at: ago(2 * H) }),
+      lead({ id: 'm3', client_name: 'Priya', ai_summary: 'fine-line moth', created_at: ago(30 * H) }),
+      lead({ id: 'm5', client_name: 'Kevin', ai_summary: 'teach a man to fish', created_at: ago(100 * H) }),
+    ]
+    const s = summarize(leads, [], PROBE_OK, NOW, [], RECEIPT)
+    const sent = operatorCopy(s, true)
+    expect(sent.subject).toBe('[EliteTatz daily] Tuesday, Nov 10: 1 new, 2 waiting on Lacey · digest sent')
+    expect(sent.text).toContain('New inquiries today: 1')
+    expect(sent.text).toContain('Passed 24 hours waiting on Lacey today: 1')
+    expect(sent.text).toContain('Waiting on Lacey longer than that: 1')
+    expect(sent.text).toContain('System checked OK at 9:00 AM.')
+    for (const secret of ['Ana', 'Priya', 'Kevin', 'moth', 'fish', 'fern']) expect(`${sent.subject}\n${sent.text}`).not.toContain(secret)
+    const quiet = operatorCopy(summarize([], [], PROBE_OK, NOW, [], RECEIPT), false)
+    expect(quiet.subject).toBe('[EliteTatz daily] Tuesday, Nov 10: 0 new, 0 waiting on Lacey · nothing sent to Lacey')
+    expect(quiet.text).toContain('Nothing was sent to Lacey tonight: there was nothing new for her.')
   })
 
   test('a lead the hold timer already emailed her about today is one line, not a second reminder', () => {
@@ -88,7 +160,7 @@ describe('digest copy', () => {
     expect(s.unanswered[0].nudgedAt).toBe('10:00 AM')
     const { text } = digestCopy(s)
     expect(text).toContain('• Priya · fine-line moth · waiting 30 hours · you were emailed at 10:00 AM')
-    expect(text).toContain('This is the only reminder tonight.')
+    expect(text).toContain('This is the only evening this note will list them.')
     // A yesterday-only nudge does not count as today's.
     expect(summarize([priya], [], PROBE_OK, NOW, [nudges[1]]).unanswered[0].nudgedAt).toBeNull()
   })
@@ -130,13 +202,14 @@ describe('digest copy', () => {
 })
 
 describe('runDigest', () => {
-  interface World { leads?: DigestLead[]; probe?: ProbeRow | null; messages?: HoldMessage[]; sentNudges?: NudgeRow[]; holdEvents?: unknown[]; receipt?: string | null; alreadySent?: boolean }
+  interface World { leads?: DigestLead[]; probe?: ProbeRow | null; messages?: HoldMessage[]; sentNudges?: NudgeRow[]; holdEvents?: unknown[]; receipt?: string | null; alreadySent?: boolean; notes?: HoldNote[] }
   const tick = (w: World = {}) => {
     const db = fakeDb((c: Call) => {
       if (c.table === 'matches') return { data: w.leads ?? [] }
       if (c.table === 'match_messages') return { data: w.messages ?? [] }
       if (c.table === 'probe_runs') return { data: w.probe === undefined ? [PROBE_OK] : w.probe ? [w.probe] : [] }
       if (c.table === 'hold_events') return { data: w.holdEvents ?? [] }
+      if (c.table === 'lead_notes') return { data: w.notes ?? [] }
       if (c.table === 'artist_notifications') {
         if (has(c, 'kind', 'Daily digest')) return { data: w.alreadySent ? [{ id: 'log-0' }] : [] } // the once-a-day check
         if (has(c, 'delivery_status', 'delivered')) return { data: w.receipt === undefined ? [{ delivered_at: RECEIPT }] : w.receipt ? [{ delivered_at: w.receipt }] : [] }
@@ -147,22 +220,54 @@ describe('runDigest', () => {
     return { db, run: (now = NOW, force = false) => runDigest(db.db, 'artist-1', { now, force }) }
   }
 
-  test('sends the zero-day note through notifyArtist, logged as "Daily digest" for the day', async () => {
+  test('a quiet day sends her nothing: it is logged as skipped, and the operator gets the daily line', async () => {
     const t = tick()
     const r = await t.run()
-    expect(r).toEqual({ sent: true, skipped: null, newToday: 0, unanswered: 0, probe: 'ok', delivery: 'confirmed' })
+    expect(r).toEqual({ sent: false, skipped: 'quiet day: nothing new for her', newToday: 0, unanswered: 0, probe: 'ok', delivery: 'confirmed' })
+    // notifyArtist is still the one door, so the day has its row in the delivery log.
     expect(notifyArtist).toHaveBeenCalledTimes(1)
-    const notice = notifyArtist.mock.calls[0][0]
-    expect(notice).toMatchObject({ kind: 'Daily digest', ref: 'digest-2026-11-10', artistId: 'artist-1' })
-    expect(notice.text).toContain('Today: 0 new inquiries. System checked OK at 9:00 AM.')
+    expect(notifyArtist.mock.calls[0][0]).toMatchObject({ kind: 'Daily digest', ref: 'digest-2026-11-10', artistId: 'artist-1', skip: 'quiet day: nothing new for her' })
+    expect(reportToOperator).toHaveBeenCalledTimes(1)
+    expect(reportToOperator.mock.calls[0][0].subject).toBe('[EliteTatz daily] Tuesday, Nov 10: 0 new, 0 waiting on Lacey · nothing sent to Lacey')
+    expect(reportToOperator.mock.calls[0][0].text).toContain('System checked OK at 9:00 AM.')
     expect(alertOperator).not.toHaveBeenCalled()
   })
 
+  test('a day with a new inquiry sends the digest, logged as "Daily digest" for the day, and the operator hears that it went', async () => {
+    const r = await tick({ leads: [lead()] }).run()
+    expect(r).toEqual({ sent: true, skipped: null, newToday: 1, unanswered: 0, probe: 'ok', delivery: 'confirmed' })
+    const notice = notifyArtist.mock.calls[0][0]
+    expect(notice).toMatchObject({ kind: 'Daily digest', ref: 'digest-2026-11-10', artistId: 'artist-1', skip: null })
+    expect(notice.text).toContain('Today: 1 new inquiry (Ana). System checked OK at 9:00 AM.')
+    expect(reportToOperator.mock.calls[0][0].subject).toContain('1 new, 0 waiting on Lacey · digest sent')
+  })
+
+  test('people who have waited more than two days do not bring the digest back night after night', async () => {
+    // The Nov 13–18 case: nothing new, the same people still open.
+    const leads = [lead({ id: 'a', created_at: ago(9 * 24 * H) }), lead({ id: 'b', created_at: ago(6 * 24 * H) }), lead({ id: 'c', created_at: ago(50 * H) })]
+    const r = await tick({ leads }).run()
+    expect(r).toMatchObject({ sent: false, skipped: 'quiet day: nothing new for her', unanswered: 0 })
+    expect(notifyArtist.mock.calls[0][0].skip).toBe('quiet day: nothing new for her')
+    expect(reportToOperator.mock.calls[0][0].text).toContain('Waiting on Lacey longer than that: 3')
+  })
+
+  test('a lead she noted as handled is not listed, end to end: only her own notes are read', async () => {
+    const t = tick({
+      leads: [lead({ id: 'm3', created_at: ago(30 * H) })],
+      messages: [{ match_id: 'm3', sender: 'client', body: 'Hi', created_at: ago(30 * H) }],
+      notes: [{ match_id: 'm3', created_at: ago(10 * H) }],
+    })
+    const r = await t.run()
+    expect(r).toMatchObject({ sent: false, unanswered: 0 })
+    const read = t.db.calls.find((c) => c.table === 'lead_notes') as Call
+    expect(read.filters).toEqual(expect.arrayContaining([['match_id in', ['m3']], ['author', 'artist']]))
+  })
+
   test('with no delivery receipt on record the note claims only what the probe checked', async () => {
-    const r = await tick({ receipt: null }).run()
+    const r = await tick({ receipt: null, leads: [lead()] }).run()
     expect(r).toMatchObject({ sent: true, probe: 'ok', delivery: 'unconfirmed' })
     const text = notifyArtist.mock.calls[0][0].text as string
-    expect(text).toContain('Today: 0 new inquiries. Form and inbox checked at 9:00 AM.')
+    expect(text).toContain('Today: 1 new inquiry (Ana). Form and inbox checked at 9:00 AM.')
     expect(text).not.toContain('System checked OK')
   })
 
@@ -173,21 +278,31 @@ describe('runDigest', () => {
     expect(t.db.calls).toHaveLength(0)
     expect(notifyArtist).not.toHaveBeenCalled()
     // In summer the 23:00 UTC tick is the one that lands on 7 PM.
-    expect((await tick({ probe: { ...PROBE_OK, ran_at: '2026-07-15T13:00:00Z' } }).run(Date.parse('2026-07-15T23:00:00Z'))).sent).toBe(true)
+    expect((await tick({ leads: [lead({ created_at: '2026-07-15T20:00:00Z' })], probe: { ...PROBE_OK, ran_at: '2026-07-15T13:00:00Z' } }).run(Date.parse('2026-07-15T23:00:00Z'))).sent).toBe(true)
   })
 
-  test('a digest already logged as sent today is not sent twice, unless forced', async () => {
-    expect((await tick({ alreadySent: true }).run()).skipped).toBe('already sent today')
+  test('a day already decided (sent, or skipped as quiet) is not decided twice, unless forced', async () => {
+    const t = tick({ alreadySent: true })
+    expect((await t.run()).skipped).toBe('already sent today')
     expect(notifyArtist).not.toHaveBeenCalled()
-    expect((await tick({ alreadySent: true }).run(NOW, true)).sent).toBe(true)
+    expect(reportToOperator).not.toHaveBeenCalled()
+    const once = t.db.calls.find((c) => c.table === 'artist_notifications' && has(c, 'kind', 'Daily digest')) as Call
+    expect(once.filters).toEqual(expect.arrayContaining([['status in', ['sent', 'skipped']]]))
+    // Forced is the operator asking for the email itself: it goes even on a quiet day.
+    const forced = await tick({ alreadySent: true }).run(NOW, true)
+    expect(forced).toMatchObject({ sent: true, skipped: null })
+    expect(notifyArtist.mock.calls[0][0].skip).toBeNull()
   })
 
-  test('with no probe result today Lacey is told and so is Erica', async () => {
+  test('with no probe result today Erica is alerted and her daily line says so; a quiet day still sends Lacey nothing', async () => {
     const r = await tick({ probe: null }).run()
-    expect(r.probe).toBe('none')
-    expect(notifyArtist.mock.calls[0][0].text).toContain('No system check ran today')
+    expect(r).toMatchObject({ probe: 'none', sent: false })
     expect(alertOperator).toHaveBeenCalledTimes(1)
     expect(alertOperator.mock.calls[0][0].subject).toBe('No probe result today')
+    expect(reportToOperator.mock.calls[0][0].text).toContain('No system check ran today')
+    // On a day with news, her digest says it too.
+    await tick({ probe: null, leads: [lead()] }).run()
+    expect(notifyArtist.mock.calls[1][0].text).toContain('No system check ran today')
   })
 
   test('the counts come from the day’s leads, minus the probe, and a hold email that really went today is folded in', async () => {
@@ -227,7 +342,7 @@ describe('runDigest', () => {
       messages: [{ match_id: 'f', sender: 'client', body: 'Hi', created_at: ago(30 * H), meta: { mailbox: 'forwarded' } }],
     })
     const r = await t.run()
-    expect(r.unanswered).toBe(0)
-    expect(notifyArtist.mock.calls[0][0].text).toContain('Nothing is waiting on you.')
+    expect(r).toMatchObject({ unanswered: 0, sent: false })
+    expect(notifyArtist.mock.calls[0][0].skip).toBe('quiet day: nothing new for her')
   })
 })

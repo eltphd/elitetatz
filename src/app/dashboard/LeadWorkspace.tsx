@@ -81,7 +81,7 @@ export function LeadWorkspace(p: LeadWorkspaceProps) {
         returning={p.returning}
         demo={p.demo}
       />
-      <NotesPanel matchId={p.matchId} notes={p.notes} demo={p.demo} />
+      <NotesPanel key={p.notes.map((n) => n.id).join(',')} matchId={p.matchId} notes={p.notes} demo={p.demo} />
       <ConversationViewer
         matchId={p.matchId}
         conversationId={p.conversationId}

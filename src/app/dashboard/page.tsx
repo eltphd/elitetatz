@@ -52,9 +52,9 @@ export default async function DashboardPage() {
       db.from('lead_attachments').select('id, match_id, message_id, storage_path, filename, mime, size_bytes, source, created_at').in('match_id', ids).order('created_at', { ascending: true }),
       db.from('lead_notes').select('id, match_id, author, kind, body, created_at').in('match_id', ids).order('created_at', { ascending: true }),
     ])
-    for (const m of (msgs ?? []) as (ThreadMessage & { match_id: string; meta?: { mailbox?: unknown } | null })[]) {
+    for (const m of (msgs ?? []) as (ThreadMessage & { match_id: string; meta?: { mailbox?: unknown; pasted_by?: unknown } | null })[]) {
       const list = threads.get(m.match_id) ?? []
-      list.push({ id: m.id, sender: m.sender, body: m.body, created_at: m.created_at, channel: m.channel ?? null, mailbox: typeof m.meta?.mailbox === 'string' ? m.meta.mailbox : null })
+      list.push({ id: m.id, sender: m.sender, body: m.body, created_at: m.created_at, channel: m.channel ?? null, mailbox: typeof m.meta?.mailbox === 'string' ? m.meta.mailbox : null, pasted: Boolean(m.meta?.pasted_by) })
       threads.set(m.match_id, list)
     }
     const attRows = (atts ?? []) as AttachmentRow[]
@@ -80,11 +80,11 @@ export default async function DashboardPage() {
   const walkthrough = walkthroughState({ leadCount: leads.length, dismissedAt })
 
   const groups: Record<Group, Lead[]> = { needs_you: [], waiting: [], booked: [], closed: [] }
-  for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [])].push(lead)
+  for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [], notes.get(lead.id) ?? [])].push(lead)
 
   const sections: { key: Group; title: string; hint?: string; pulse?: boolean }[] = [
     { key: 'needs_you', title: 'Needs you', hint: 'New inquiries and client replies', pulse: true },
-    { key: 'waiting', title: 'Waiting on client', hint: 'You answered, asked or quoted' },
+    { key: 'waiting', title: 'Waiting on client', hint: 'You answered, asked, quoted or handled it elsewhere' },
     { key: 'booked', title: 'Booked', hint: 'Deposit in' },
     { key: 'closed', title: 'Closed' },
   ]
