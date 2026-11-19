@@ -65,6 +65,35 @@ export function conceptFrom(subject: string | null | undefined, text: string, ch
   return pick || `New ${CHANNEL_LABEL[channel].toLowerCase()}`
 }
 
+const plainSubject = (s: string | null | undefined) =>
+  (s ?? '').replace(/^\s*((re|fwd?|fw)\s*:\s*)+/i, '').replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * Is this email a reply to something we sent to her list? Then its subject is
+ * ours, not the client's idea: 197 people answering the Reconnect email would
+ * otherwise open 197 cards all titled with her own subject line. The campaign
+ * subjects are the ones in her approvals queue.
+ */
+export async function campaignReply(db: SupabaseClient, subject: string | null | undefined): Promise<{ key: string } | null> {
+  const want = plainSubject(subject)
+  if (!want || !/^\s*re\s*:/i.test(subject ?? '')) return null
+  try {
+    const { data } = await db.from('approvals').select('key, subject').eq('kind', 'email_campaign')
+    for (const row of (Array.isArray(data) ? data : []) as { key: string; subject: string | null }[]) {
+      if (plainSubject(row.subject) === want) return { key: row.key }
+    }
+  } catch (err) {
+    console.warn('campaign lookup:', err)
+  }
+  return null
+}
+
+/** What a card opened by a reply to a campaign is called: their own first words, or what they sent. */
+export function replyConcept(text: string, files: number, channel: Channel): string {
+  if (text.trim().length >= 4) return conceptFrom(null, text, channel)
+  return files ? `Sent ${files} photo${files === 1 ? '' : 's'} in reply to your note` : 'Replied to your note'
+}
+
 export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promise<IngestOutcome> {
   const recorded = await recordEvent(db, msg.channel, msg.externalId)
   if (recorded === 'duplicate') return { outcome: 'duplicate' }
@@ -79,6 +108,7 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
 
     let matchId: string
     let outcome: 'appended' | 'opened'
+    let concept = conceptFrom(msg.subject, text, msg.channel)
     if (existing) {
       matchId = existing.id
       outcome = 'appended'
@@ -89,14 +119,21 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
       if (msg.phone && !existing.client_phone) await db.from('matches').update({ client_phone: msg.phone }).eq('id', matchId)
       if (msg.email && !existing.client_email) await db.from('matches').update({ client_email: msg.email.toLowerCase() }).eq('id', matchId)
     } else {
+      const campaign = msg.channel === 'email' ? await campaignReply(db, msg.subject) : null
+      if (campaign) concept = replyConcept(text, msg.attachments.length, msg.channel)
       const opened = await openLead(db, artist, {
         channel: msg.channel,
         name: msg.senderName,
         email: msg.email,
         phone: msg.phone,
         externalThreadId: msg.externalThreadId,
-        concept: conceptFrom(msg.subject, text, msg.channel),
-        brief: { has_reference: msg.attachments.length > 0, ...(msg.subject ? { subject: msg.subject } : {}) },
+        concept,
+        brief: {
+          has_reference: msg.attachments.length > 0,
+          ...(msg.subject ? { subject: msg.subject } : {}),
+          // Which of her own emails this person was answering (the approvals key).
+          ...(campaign ? { reply_to_campaign: campaign.key } : {}),
+        },
       })
       if (!opened) throw new Error('could not open lead')
       matchId = opened.id
@@ -152,7 +189,7 @@ export async function ingest(db: SupabaseClient, msg: NormalizedInbound): Promis
         msg.artistHasIt === 'forwarded' ? 'already in her mailbox: she forwarded this message herself'
         : msg.artistHasIt === 'delivered' ? 'already in her mailbox: it was delivered to her address on its way here'
         : null,
-      subject: outcome === 'opened' ? `${via}: ${who} — ${conceptFrom(msg.subject, text, msg.channel)}` : `${who} replied by ${via.toLowerCase()}`,
+      subject: outcome === 'opened' ? `${via}: ${who} — ${concept}` : `${who} replied by ${via.toLowerCase()}`,
       text: `${outcome === 'opened' ? `New inquiry by ${via.toLowerCase()}` : `Reply by ${via.toLowerCase()}`} from ${who}${files}.
 
 "${excerpt}${text.length > 240 ? '…' : ''}"
