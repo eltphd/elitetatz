@@ -87,7 +87,7 @@ Ordered by what unblocks bookings first. Owners and times marked "suggested" wer
 4. **Get Lacey's three answers for the "How it works" page.** Lacey, asked by Erica · one short conversation (suggested: this week, in the studio). Consult length and cost, touch-up policy, how watercolor heals. The design is approved and waits only on these.
 5. **Decide whether to write to the client who was told "her books are full".** Lacey's call · 5 minutes.
 6. **Bring the tattoos, originals and blog pages into the new design.** Dev · one session (suggested). A visitor who clicks through today sees two different sites.
-7. **Name this stop.** Erica · 2 minutes. elitetatz is still tagged v0.2.0 and the site v2.2.0, with all of this session's merges on top. Suggested: v0.3.0 and v2.3.0.
+7. **Name this stop.** Done the same afternoon, on Erica's yes: EliteTatz is v0.3.0 and the site is v2.3.0, both tagged on `main`. v0.2.0 and v2.2.0 were the Nov 10 stop.
 8. **Build what is left in the dev file.** Dev. F9 (healed stories, after three are approved), the P1b pages, F19 to F24. F24 needs a new way in, because it assumed a nightly note that no longer comes on quiet days.
 9. **Older items still open.** Confirm the Formspree backup delivers to her; connect Slack on Vercel or accept that the 72-hour line never reaches Erica; scope the email webhook at the provider so woopsi mail stops arriving at all.
 
