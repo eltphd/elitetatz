@@ -18,10 +18,35 @@ const html = (text: string) =>
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>')}</div>`
 
+/** A photo the client sent with their message: a link that opens without a sign-in. */
+export interface NoticeImage {
+  url: string
+  name: string
+}
+
+const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** The photos as thumbnails she can tap, for the HTML part of her email. */
+export function imagesHtml(images: NoticeImage[]): string {
+  if (!images.length) return ''
+  const thumbs = images
+    .map((i) => `<a href="${attr(i.url)}" style="display:inline-block;margin:0 8px 8px 0;text-decoration:none"><img src="${attr(i.url)}" alt="${attr(i.name)}" width="150" style="display:block;width:150px;max-width:100%;height:auto;border-radius:6px;border:1px solid #ddd" /></a>`)
+    .join('')
+  return `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:#555;margin-top:14px"><div style="margin-bottom:8px">${images.length} photo${images.length === 1 ? '' : 's'} they sent. Tap one to open it full size. These links work for 30 days; the photos stay on the card in your inbox.</div>${thumbs}</div>`
+}
+
+/** The same photos for the plain-text part, where there are no pictures: one link per line. */
+export function imagesText(images: NoticeImage[]): string {
+  if (!images.length) return ''
+  return `\n\nPhotos they sent (links work for 30 days; the photos stay on the card in your inbox):\n${images.map((i, n) => `${n + 1}. ${i.name}: ${i.url}`).join('\n')}`
+}
+
 export interface ArtistNotice {
   subject: string
   text: string
   sms?: string
+  /** Photos that came with the message. Shown as thumbnails in her email. */
+  images?: NoticeImage[]
   /** What this is, for the log and the operator copy: "New inquiry", "Client reply". */
   kind: string
   /** Reference for the operator copy and the log (a match id, or an approval id). */
@@ -99,8 +124,8 @@ export async function notifyArtist(args: ArtistNotice): Promise<ArtistNoticeResu
     to,
     replyTo: artistReplyTo(args.replyTo),
     subject: args.subject,
-    html: html(args.text),
-    text: args.text,
+    html: html(args.text) + imagesHtml(args.images ?? []),
+    text: args.text + imagesText(args.images ?? []),
   })
 
   const logId = await logDelivery({

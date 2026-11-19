@@ -147,6 +147,11 @@ export function LeadCard({
 
   const email = lead.client_email || str(brief.client_email) || lead.clients?.email || ''
   const phone = lead.client_phone || str(brief.client_phone) || ''
+  // The number a form client left for her to call, or to text from her own
+  // phone if they ticked the box. It is not `phone`: the portal never texts
+  // it, so it does not count as a way to reply from here.
+  const contactPhone = phone ? '' : str(brief.contact_phone)
+  const textOk = brief.text_ok === true
   // A text with no name is still a person: show the number until she learns the name.
   const name = lead.client_name || str(brief.client_name) || lead.clients?.name || phone || 'Anonymous'
   const handle = str(brief.handle)
@@ -205,7 +210,7 @@ export function LeadCard({
         </span>
       </div>
 
-      {(email || phone) && (
+      {(email || phone || contactPhone) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
           {email && (
             <a href={`mailto:${email}`} className="flex items-center gap-1 text-[#9b9b9b] hover:text-[#c9a84c]">
@@ -216,6 +221,16 @@ export function LeadCard({
             <a href={`tel:${phone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1 text-[#9b9b9b] hover:text-[#c9a84c]">
               <Phone className="w-3 h-3" />{phone}
             </a>
+          )}
+          {contactPhone && (
+            <span className="flex items-center gap-1.5">
+              <a href={`tel:${contactPhone.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1 text-[#9b9b9b] hover:text-[#c9a84c]">
+                <Phone className="w-3 h-3" />{contactPhone}
+              </a>
+              <span className={`text-[10px] font-semibold rounded-full px-1.5 py-px border ${textOk ? 'text-green-400 bg-green-900/20 border-green-800/40' : 'text-[#9b9b9b] bg-[#1e1e1e] border-[#2a2a2a]'}`}>
+                {textOk ? 'OK to text, from your phone' : 'Call only, no texts'}
+              </span>
+            </span>
           )}
         </div>
       )}

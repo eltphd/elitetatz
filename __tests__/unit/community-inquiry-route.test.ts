@@ -76,7 +76,7 @@ describe('rawsunart.com inquiry form', () => {
   test('emails Lacey first, with the whole form and the client as reply-to, then saves, counts and confirms', async () => {
     const res = await post(form, nextIp())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true })
+    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true, photos: 0, receipt: true })
 
     expect(notifyArtist).toHaveBeenCalledTimes(1)
     const notice = notifyArtist.mock.calls[0][0]
@@ -140,9 +140,12 @@ describe('rawsunart.com inquiry form', () => {
     db = normalDb((c) => (c.table === 'matches' && c.op === 'insert' ? { error: { message: 'connection refused' } } : undefined))
     const res = await post(form, nextIp())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true })
+    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true, photos: 0, receipt: true })
     expect(notifyArtist).toHaveBeenCalledTimes(1)
-    expect(notifyClient).not.toHaveBeenCalled() // no inquiry page to point at
+    // The client is still told it arrived, once, with no page link: there is no page.
+    expect(notifyClient).toHaveBeenCalledTimes(1)
+    expect(notifyClient.mock.calls[0][0].text).toContain('Got it.')
+    expect(notifyClient.mock.calls[0][0].text).not.toContain('/inquiry/')
     expect(alertOperator).toHaveBeenCalledTimes(1)
     expect(alertOperator.mock.calls[0][0].subject).toContain('email only')
     expect(alertOperator.mock.calls[0][0].text).toContain('connection refused')
@@ -155,7 +158,7 @@ describe('rawsunart.com inquiry form', () => {
     db = null
     const res = await post(form, nextIp())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true })
+    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true, photos: 0, receipt: true })
     expect(notifyArtist).toHaveBeenCalledTimes(1)
     expect(alertOperator).toHaveBeenCalledTimes(1)
   })
@@ -177,7 +180,7 @@ describe('rawsunart.com inquiry form', () => {
     })
     const res = await post({ ...form, concept: 'Forgot to say: I can do weekdays' }, nextIp())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true, duplicate: true })
+    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true, photos: 0, receipt: true, duplicate: true })
     const notice = notifyArtist.mock.calls[0][0]
     expect(notice.kind).toBe('Inquiry follow-up')
     expect(notice.matchId).toBe('match-prior')
@@ -187,7 +190,10 @@ describe('rawsunart.com inquiry form', () => {
     expect(writes(db!.calls, 'inquiry_sources', 'insert')).toHaveLength(0)
     const [msg] = writes(db!.calls, 'match_messages', 'insert')
     expect(msg.payload).toMatchObject({ match_id: 'match-prior', sender: 'client' })
-    expect(notifyClient).not.toHaveBeenCalled()
+    // One confirmation for this message too: what they sent, and that it joined the first one.
+    expect(notifyClient).toHaveBeenCalledTimes(1)
+    expect(notifyClient.mock.calls[0][0].text).toContain('This was added to the inquiry you sent earlier.')
+    expect(notifyClient.mock.calls[0][0].text).toContain('Idea: Forgot to say: I can do weekdays')
   })
 
   test('the signed daily probe walks the same path, mails nobody, gets no receipt, and is always a fresh inquiry', async () => {
@@ -229,7 +235,7 @@ describe('rawsunart.com inquiry form', () => {
       notifyArtist.mockClear(); notifyClient.mockClear()
       const res = await post(body, nextIp(), headers)
       const out = await res.json()
-      expect({ name, out }).toEqual({ name, out: { ok: true, portal: true, emailed: true } }) // no ref
+      expect({ name, out }).toEqual({ name, out: { ok: true, portal: true, emailed: true, photos: 0, receipt: true } }) // no ref
       const notice = notifyArtist.mock.calls[0][0]
       expect(notice.skip ?? null).toBeNull()
       expect(notice.kind).toBe('New inquiry')
@@ -249,7 +255,7 @@ describe('rawsunart.com inquiry form', () => {
   test('an unsigned "test-probe" whose portal write fails still alerts, like any inquiry', async () => {
     db = normalDb((c) => (c.table === 'matches' && c.op === 'insert' ? { error: { message: 'connection refused' } } : undefined))
     const res = await post({ ...form, found_via: 'test-probe' }, nextIp())
-    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true })
+    expect(await res.json()).toEqual({ ok: true, portal: false, emailed: true, photos: 0, receipt: true })
     expect(alertOperator).toHaveBeenCalledTimes(1)
   })
 
@@ -257,7 +263,7 @@ describe('rawsunart.com inquiry form', () => {
     const headers = signed()
     delete process.env.CRON_SECRET
     const res = await post(probeForm(), nextIp(), headers)
-    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true })
+    expect(await res.json()).toEqual({ ok: true, portal: true, emailed: true, photos: 0, receipt: true })
     expect(notifyArtist.mock.calls[0][0].skip ?? null).toBeNull()
   })
 
