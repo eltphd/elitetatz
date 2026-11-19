@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { StickyNote, Loader2, Trash2 } from 'lucide-react'
 
 // Her notes to herself on a lead. Private: never shown to the client, never
 // sent. The assistant reads them so its advice knows what she already thinks.
+// A note is also how she tells the portal she dealt with someone another way
+// (lib/handled.ts), so saving or removing one refreshes where the card stands.
 
 export interface NoteView { id: string; author: string; kind: string; body: string; created_at: string }
 
@@ -16,6 +19,7 @@ export function NotesPanel({ matchId, notes, demo = false }: { matchId: string; 
   const [open, setOpen] = useState(list.length > 0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
 
   async function add() {
     const body = text.trim()
@@ -29,6 +33,7 @@ export function NotesPanel({ matchId, notes, demo = false }: { matchId: string; 
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error ?? 'Could not save')
         setList((l) => [...l, data.note])
+        router.refresh()
       }
       setText('')
     } catch (e) {
@@ -40,6 +45,7 @@ export function NotesPanel({ matchId, notes, demo = false }: { matchId: string; 
     setList((l) => l.filter((n) => n.id !== id))
     if (demo) return
     await fetch('/api/dashboard/notes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => {})
+    router.refresh()
   }
 
   return (
@@ -68,7 +74,7 @@ export function NotesPanel({ matchId, notes, demo = false }: { matchId: string; 
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) add() }}
               rows={1}
-              placeholder="A note to yourself: what you think, what to check at the appointment…"
+              placeholder="A note to yourself. If you answered them another way, say so here and the reminders stop."
               className="flex-1 bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl px-3 py-2 text-xs text-white placeholder-[#6b6b6b] outline-none focus:border-[#c9a84c]/40 resize-none"
             />
             <button onClick={add} disabled={!text.trim() || busy} className="h-9 px-3 rounded-xl bg-[#1e1e1e] border border-[#2a2a2a] text-xs text-[#e0c878] disabled:opacity-40 flex items-center gap-1">

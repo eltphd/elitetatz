@@ -1,36 +1,52 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyArtist } from '@/lib/notify'
-import { alertOperator } from '@/lib/alert'
-import { appUrl } from '@/lib/tokens'
+import { alertOperator, reportToOperator } from '@/lib/alert'
+import { appUrl, handledUrl } from '@/lib/tokens'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
-import { easternHour, waitingOnArtistSince, DIGEST_HOUR, type HoldMessage } from '@/lib/holds'
+import { easternHour, waitingOnArtistSince, oneLine, DIGEST_HOUR, type HoldMessage, type HoldNote } from '@/lib/holds'
 import { isProbeBrief } from '@/lib/probe-tag'
 import { latestReceipt, RECEIPT_FRESH } from '@/lib/delivery'
 
-// The 7 PM digest (Nov 9 brief, item 7). One email to Lacey every evening,
-// zero day or not: who came in today by first name, who has waited on her
-// more than a day, and whether the morning system check passed. On a quiet
-// day the whole point is the line "Today: 0 new inquiries. System checked OK
-// at 9:00 AM." — the form and the inbox are working, and nobody is waiting.
+// The 7 PM digest. One email to Lacey on an evening when something is new:
+// who came in today by first name, and who has just passed a day waiting on
+// her. On a day with neither, she gets nothing.
 //
-// That line only says what was checked. The probe proves the form, the inbox
-// and the source count; it mails nobody. That email reaches her is proved by
-// a delivery receipt from her mail server on something she was really sent
-// (src/lib/delivery.ts), usually last night's digest. With a receipt inside
-// the last 26 hours the line reads "System checked OK"; without one it reads
-// "Form and inbox checked", which is all that was.
+// What changed on Nov 18 2026, and why. It used to go every evening, quiet
+// days included, and listed everyone still waiting every night. Lacey's
+// report: too much, and confusing, because it kept telling her about people
+// she had already answered by text or at the shop, which the portal cannot
+// see. So now:
+//
+//   - A waiting lead is listed once, on the evening it passes 24 hours
+//     (`unanswered`). After that the digest never mentions it again; the
+//     72-hour reminder (hold A2) is the one follow-up. Each line carries the
+//     "already handled it?" link (src/lib/handled.ts).
+//   - A lead she has noted as handled somewhere else is not waiting at all
+//     (waitingOnArtistSince reads her notes).
+//   - The daily proof that the form and the inbox are working goes to the
+//     operator instead (`operatorCopy`), every evening, with counts only. A
+//     quiet day is logged against her as 'skipped', so the record shows a
+//     decision and not a gap.
+//
+// The system line only says what was checked. The probe proves the form, the
+// inbox and the source count; it mails nobody. That email reaches her is
+// proved by a delivery receipt from her mail server on something she was
+// really sent (src/lib/delivery.ts). With a receipt inside the last 26 hours
+// the line reads "System checked OK"; without one it reads "Form and inbox
+// checked", which is all that was. With no nightly email a receipt is often
+// older than that, and the line says so honestly.
 //
 // Run by /api/cron/digest at 23:00 and 00:00 UTC; only the tick that lands on
-// 7 PM Eastern sends, so the hour holds across the clock change. The send
-// goes through notifyArtist, so it is logged like every other email to her
-// and a failure alerts the operator. The probe's own inquiry is not counted.
+// 7 PM Eastern acts, so the hour holds across the clock change. The send goes
+// through notifyArtist, so it is logged like every other email to her and a
+// failure alerts the operator. The probe's own inquiry is not counted.
 //
 // Erica's rule: never two emails to Lacey about the same thing. A lead the
 // hold timers already emailed her about today is one line here ("you were
 // emailed at 10:00 AM"), not a second reminder, and in this hour the holds
 // send her nothing (src/lib/holds.ts), so a digest-and-nudge pair cannot
 // happen. "Emailed" is read from the delivery log (a 'sent' Hold A1/A2 row),
-// never from hold_events: a hold recorded in the digest hour sent her nothing.
+// not from hold_events, which also records the holds that sent her nothing.
 
 const TZ = 'America/New_York'
 const HOUR = 3_600_000
@@ -63,8 +79,14 @@ export interface DigestSummary {
   /** "Monday, Nov 9" in Eastern time. */
   dateLabel: string
   newToday: { first: string; concept: string }[]
-  /** `nudgedAt` is "10:00 AM" when a hold already emailed her about it today. */
-  unanswered: { first: string; concept: string; waited: string; nudgedAt: string | null }[]
+  /**
+   * Who passed 24 hours waiting on her since the last digest: listed tonight
+   * and never again. `nudgedAt` is "10:00 AM" when a hold already emailed her
+   * about it today.
+   */
+  unanswered: { id: string; first: string; concept: string; waited: string; nudgedAt: string | null }[]
+  /** How many have waited longer than that. A count for the operator; she is not told again. */
+  stillWaiting: number
   probe: ProbeRow | null
   /** True when her mail server confirmed taking an email from us in the last 26 hours. */
   delivered: boolean
@@ -106,7 +128,7 @@ function waitedWord(sinceMs: number, now: number): string {
 // ---- summary (pure) -----------------------------------------------------------
 
 const firstName = (name: string | null) => name?.trim().split(/\s+/)[0] || 'A client'
-const conceptOf = (lead: DigestLead) => lead.ai_summary?.trim() || 'no concept given'
+const conceptOf = (lead: DigestLead) => oneLine(lead.ai_summary) || 'no concept given'
 
 export function summarize(
   leads: DigestLead[],
@@ -114,7 +136,8 @@ export function summarize(
   probe: ProbeRow | null,
   now: number,
   nudges: NudgeRow[] = [],
-  lastReceiptAt: string | null = null
+  lastReceiptAt: string | null = null,
+  notes: HoldNote[] = []
 ): DigestSummary {
   const dayStart = easternDayStart(now)
   const byMatch = new Map<string, HoldMessage[]>()
@@ -122,6 +145,12 @@ export function summarize(
     const list = byMatch.get(m.match_id) ?? []
     list.push(m)
     byMatch.set(m.match_id, list)
+  }
+  const notesBy = new Map<string, HoldNote[]>()
+  for (const n of notes) {
+    const list = notesBy.get(n.match_id) ?? []
+    list.push(n)
+    notesBy.set(n.match_id, list)
   }
   const nudgedAt = new Map<string, number>()
   for (const n of nudges) {
@@ -133,12 +162,17 @@ export function summarize(
     .filter((l) => new Date(l.created_at).getTime() >= dayStart)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map((l) => ({ first: firstName(l.client_name), concept: conceptOf(l) }))
-  const unanswered = real
+  const waiting = real
     .filter((l) => WAITING.includes(l.status))
-    .map((l) => ({ lead: l, since: waitingOnArtistSince(l, byMatch.get(l.id) ?? []) }))
+    .map((l) => ({ lead: l, since: waitingOnArtistSince(l, byMatch.get(l.id) ?? [], notesBy.get(l.id)) }))
     .filter(({ since }) => since > 0 && now - since >= DAY)
     .sort((a, b) => a.since - b.since)
+  // Listed once: on the evening the wait passes a day. A digest runs every 24
+  // hours, so each wait falls in this window exactly one time.
+  const unanswered = waiting
+    .filter(({ since }) => now - since < 2 * DAY)
     .map(({ lead, since }) => ({
+      id: lead.id,
       first: firstName(lead.client_name),
       concept: conceptOf(lead),
       waited: waitedWord(since, now),
@@ -148,6 +182,7 @@ export function summarize(
     dateLabel: new Date(now).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }),
     newToday,
     unanswered,
+    stillWaiting: waiting.length - unanswered.length,
     probe,
     delivered: Boolean(lastReceiptAt) && now - new Date(lastReceiptAt as string).getTime() <= RECEIPT_FRESH,
   }
@@ -165,6 +200,11 @@ export function probeLine(probe: ProbeRow | null, delivered = false): string {
   return delivered ? `System checked OK at ${at}.` : `Form and inbox checked at ${at}.`
 }
 
+/** Something she does not already have a line about: a new inquiry today, or a wait that just passed a day. */
+export function hasNews(s: DigestSummary): boolean {
+  return s.newToday.length > 0 || s.unanswered.length > 0
+}
+
 export function digestCopy(s: DigestSummary): { subject: string; text: string } {
   const dashboard = `${appUrl()}/dashboard`
   const names = s.newToday.map((n) => n.first)
@@ -173,7 +213,7 @@ export function digestCopy(s: DigestSummary): { subject: string; text: string } 
   const headline = `${newLine}${waitLine} ${probeLine(s.probe, s.delivered)}`
 
   const subject = `${ARTIST_CONFIG.handle} today: ${plural(s.newToday.length, 'new inquiry', 'new inquiries')}${
-    s.unanswered.length ? `, ${s.unanswered.length} waiting on you` : ''
+    s.unanswered.length ? `, ${s.unanswered.length} waiting a day` : ''
   }`
 
   const sections: string[] = [headline]
@@ -182,21 +222,46 @@ export function digestCopy(s: DigestSummary): { subject: string; text: string } 
   }
   if (s.unanswered.length) {
     sections.push(
-      `Waiting on you:\n${s.unanswered
-        .map((u) => `• ${u.first} · ${u.concept} · waiting ${u.waited}${u.nudgedAt ? ` · you were emailed at ${u.nudgedAt}` : ''}`)
-        .join('\n')}\n\nEach one is already in your email as its own message; reply there and it reaches them. This is the only reminder tonight.`
+      `Waiting on you, as far as the portal can see:\n${s.unanswered
+        .map((u) => {
+          const handled = handledUrl(u.id)
+          return `• ${u.first} · ${u.concept} · waiting ${u.waited}${u.nudgedAt ? ` · you were emailed at ${u.nudgedAt}` : ''}${
+            handled ? `\n  Already answered ${u.first} another way? Tap here and the reminders stop: ${handled}` : ''
+          }`
+        })
+        .join('\n')}\n\nEach one is already in your email as its own message; reply there and it reaches them. This is the only evening this note will list them. Nothing has been sent to them about the wait.`
     )
-  } else {
-    sections.push('Nothing is waiting on you.')
   }
   sections.push(`Your inbox: ${dashboard}`)
-  sections.push(`${s.dateLabel}. This note comes every evening at 7, quiet days included, so you know the form and the inbox are working.`)
+  sections.push(`${s.dateLabel}. This note only comes on a day with something new. The form and the inbox are still checked every day; that report goes to Erica, not to you.`)
   return { subject, text: sections.join('\n\n') }
+}
+
+/**
+ * The operator's daily line: counts, the system check and whether Lacey was
+ * emailed tonight. No client names or words; those stay with the artist.
+ */
+export function operatorCopy(s: DigestSummary, emailedArtist: boolean): { subject: string; text: string } {
+  const first = ARTIST_CONFIG.name.split(' ')[0]
+  const subject = `[EliteTatz daily] ${s.dateLabel}: ${s.newToday.length} new, ${s.unanswered.length + s.stillWaiting} waiting on ${first} · ${emailedArtist ? 'digest sent' : `nothing sent to ${first}`}`
+  const text = [
+    `${s.dateLabel}, 7 PM Eastern.`,
+    `New inquiries today: ${s.newToday.length}`,
+    `Passed 24 hours waiting on ${first} today: ${s.unanswered.length}${s.unanswered.length ? ' (listed in her digest tonight, once)' : ''}`,
+    `Waiting on ${first} longer than that: ${s.stillWaiting}${s.stillWaiting ? ` (she is not told again by the digest; the 72-hour reminder is her last. If one looks stuck, ask her; she may have answered by text or at the shop, and can mark it handled on the card.)` : ''}`,
+    probeLine(s.probe, s.delivered),
+    emailedArtist
+      ? `${first} was sent tonight's digest.`
+      : `Nothing was sent to ${first} tonight: there was nothing new for her.`,
+    `Inbox: ${appUrl()}/dashboard`,
+  ].join('\n')
+  return { subject, text }
 }
 
 // ---- the run ------------------------------------------------------------------
 
 export interface DigestRun {
+  /** True when the digest went to her. False on a quiet day, when only the operator hears. */
   sent: boolean
   skipped: string | null
   newToday: number
@@ -218,7 +283,8 @@ export async function runDigest(db: SupabaseClient, artistId: string, opts: { no
       .select('id')
       .eq('kind', 'Daily digest')
       .eq('ref', ref)
-      .eq('status', 'sent')
+      // 'skipped' is a quiet day already decided: do not decide it twice.
+      .in('status', ['sent', 'skipped'])
       .limit(1)
     if (Array.isArray(already) && already.length) return { ...none, skipped: 'already sent today' }
   }
@@ -235,8 +301,9 @@ export async function runDigest(db: SupabaseClient, artistId: string, opts: { no
 
   const waitingIds = leads.filter((l) => WAITING.includes(l.status) && !isProbeBrief(l.client_brief)).map((l) => l.id)
   // `meta` carries the mailbox mark the holds read; the nudges are the A1/A2
-  // emails that really went to her today, from the delivery log.
-  const [{ data: msgs }, { data: nudges }] = waitingIds.length
+  // emails that really went to her today, from the delivery log; her notes
+  // say which leads she dealt with somewhere the portal cannot see.
+  const [{ data: msgs }, { data: nudges }, { data: nts }] = waitingIds.length
     ? await Promise.all([
         db.from('match_messages').select('match_id, sender, body, created_at, meta').in('match_id', waitingIds).order('created_at', { ascending: true }),
         db
@@ -246,8 +313,9 @@ export async function runDigest(db: SupabaseClient, artistId: string, opts: { no
           .in('kind', ['Hold A1', 'Hold A2'])
           .eq('status', 'sent')
           .gte('created_at', dayStartIso),
+        db.from('lead_notes').select('match_id, created_at').in('match_id', waitingIds).eq('author', 'artist'),
       ])
-    : [{ data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [] }]
 
   // The morning probe's verdict (migration 019). A missing table or row reads
   // as "no check ran", which is itself something to say.
@@ -262,20 +330,37 @@ export async function runDigest(db: SupabaseClient, artistId: string, opts: { no
   }
 
   const lastReceiptAt = await latestReceipt(db)
-  const summary = summarize(leads, (msgs ?? []) as HoldMessage[], probe, now, (nudges ?? []) as NudgeRow[], lastReceiptAt)
+  const summary = summarize(leads, (msgs ?? []) as HoldMessage[], probe, now, (nudges ?? []) as NudgeRow[], lastReceiptAt, (nts ?? []) as HoldNote[])
   const copy = digestCopy(summary)
 
   if (!probe) {
     await alertOperator({
       subject: 'No probe result today',
-      text: `The 7 PM digest found no probe_runs row for ${easternYmd(now)}. Either /api/cron/probe did not run (check the Vercel cron log and CRON_SECRET), it threw before writing its result, or migration 019 is not applied. Lacey's digest says a check did not run.`,
+      text: `The 7 PM digest found no probe_runs row for ${easternYmd(now)}. Either /api/cron/probe did not run (check the Vercel cron log and CRON_SECRET), it threw before writing its result, or migration 019 is not applied. The operator's daily line says a check did not run, and so does Lacey's digest if one goes tonight.`,
     })
   }
 
-  const notice = await notifyArtist({ kind: 'Daily digest', ref, subject: copy.subject, text: copy.text, artistId })
+  // A quiet day sends her nothing. It is still logged against the day (as
+  // 'skipped'), and the operator still gets the daily line. `force` is the
+  // operator asking for the email itself, so it sends regardless.
+  const quiet = !hasNews(summary) && !opts.force
+  const notice = await notifyArtist({
+    kind: 'Daily digest',
+    ref,
+    subject: copy.subject,
+    text: copy.text,
+    artistId,
+    skip: quiet ? 'quiet day: nothing new for her' : null,
+  })
+  const report = operatorCopy(summary, notice.emailed)
+  try {
+    await reportToOperator(report)
+  } catch (err) {
+    console.warn('digest: operator report', err)
+  }
   return {
     sent: notice.emailed,
-    skipped: null,
+    skipped: quiet ? 'quiet day: nothing new for her' : null,
     newToday: summary.newToday.length,
     unanswered: summary.unanswered.length,
     probe: probe ? (probe.ok ? 'ok' : 'failed') : 'none',

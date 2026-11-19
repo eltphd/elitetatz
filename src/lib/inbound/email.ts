@@ -11,6 +11,21 @@ import { ingest, recordArtistReply, type IngestOutcome, type NormalizedInbound }
 // Env: RESEND_API_KEY, RESEND_WEBHOOK_SECRET (whsec_…), INBOUND_EMAIL_ADDRESS
 // (the address Lacey forwards to; mail from the studio's own addresses is
 // only read when it wraps a forwarded message).
+//
+// Two checks come before anything becomes a lead (Nov 18 2026). The Resend
+// account also receives mail for woopsi.ink, and Resend posts every received
+// message to every webhook on the account, so this endpoint is handed mail
+// that was never meant for it. On Nov 11 a woopsi order notice became a
+// tattoo lead named "Hello", and Lacey was emailed about it four ways.
+//
+//   1. The message must be addressed to us: to the intake domain, or to her
+//      own mailbox (her Gmail auto-forward keeps her address on the To line).
+//      Mail for any other address on the account is not ours to read
+//      (`addressedToIntake`).
+//   2. The sender must be a person, not one of our own systems: nothing from
+//      woopsi.ink, or from anything in INBOUND_IGNORE_SENDERS (a comma list
+//      of domains or addresses), becomes a lead, however it got here
+//      (`isSystemSender`).
 
 // ---- Resend webhook signature (Svix scheme) ---------------------------------
 export function verifyResendSignature(headers: Headers, rawBody: string, secret: string, now = Date.now()): boolean {
@@ -132,6 +147,19 @@ export function isAutomated(mail: ReceivedEmail): boolean {
   return false
 }
 
+/** Senders that are our own systems, never a client: woopsi.ink, plus INBOUND_IGNORE_SENDERS. */
+export function ignoredSenders(raw: string | undefined = process.env.INBOUND_IGNORE_SENDERS): string[] {
+  const extra = (raw ?? '').split(',').map((s) => s.trim().toLowerCase().replace(/^@/, '')).filter(Boolean)
+  return Array.from(new Set(['woopsi.ink', ...extra]))
+}
+
+/** Is this address (or its domain, or a subdomain of it) on the system-sender list? */
+export function isSystemSender(from: string, list: string[] = ignoredSenders()): boolean {
+  const addr = bareAddress(from)
+  const domain = addr.split('@')[1] ?? ''
+  return list.some((entry) => (entry.includes('@') ? addr === entry : domain === entry || domain.endsWith(`.${entry}`)))
+}
+
 export function ownAddresses(): Set<string> {
   const set = new Set<string>()
   const add = (v: string | undefined | null) => { if (v) set.add(bareAddress(v)) }
@@ -211,6 +239,42 @@ export function alreadyInArtistMailbox(mail: ReceivedEmail): 'forwarded' | 'deli
   return null
 }
 
+/**
+ * Was this message sent to us at all? Resend hands this endpoint everything
+ * the account receives, including mail for other domains on it. Ours is mail
+ * that names the intake domain or her own mailbox anywhere a recipient is
+ * recorded: the envelope, To, Cc, or the headers a forward leaves behind.
+ *
+ * Fails open on purpose: with no intake address configured, or a message
+ * that records no recipient at all, it is read as before. Losing a real
+ * inquiry is worse than reading one stray message.
+ */
+export function addressedToIntake(mail: ReceivedEmail): boolean {
+  const domain = intakeDomain()
+  if (!domain) return true
+  const hers = artistMailboxes()
+  const fields = [
+    ...(Array.isArray(mail.to) ? mail.to : []),
+    header(mail, 'to'),
+    header(mail, 'cc'),
+    header(mail, 'bcc'),
+    header(mail, 'delivered-to'),
+    header(mail, 'envelope-to'),
+    header(mail, 'x-original-to'),
+    header(mail, 'x-forwarded-to'),
+    header(mail, 'x-forwarded-for'),
+    header(mail, 'received'),
+  ]
+  let seen = 0
+  for (const field of fields) {
+    for (const addr of String(field ?? '').toLowerCase().match(ADDRESS) ?? []) {
+      seen++
+      if (addr.endsWith(`@${domain}`) || hers.has(addr)) return true
+    }
+  }
+  return seen === 0
+}
+
 // Plain text out of the message: the text part, else the HTML with tags gone.
 export function textBody(mail: Pick<ReceivedEmail, 'text' | 'html'>): string {
   if (mail.text && mail.text.trim()) return mail.text.replace(/\r\n/g, '\n').trim()
@@ -275,6 +339,8 @@ export function stripQuoted(text: string): string {
 
 export function normalizeEmail(mail: ReceivedEmail, attachments: Array<{ url: string; filename: string; mime: string | null }>): NormalizedInbound | { ignored: string } {
   if (isAutomated(mail)) return { ignored: 'automated' }
+  if (!addressedToIntake(mail)) return { ignored: 'not-addressed-to-intake' }
+  if (isSystemSender(mail.from)) return { ignored: 'system-sender' }
 
   let from = mail.from
   let subject = mail.subject ?? null
@@ -288,6 +354,8 @@ export function normalizeEmail(mail: ReceivedEmail, attachments: Array<{ url: st
     subject = fwd.subject ?? subject
     text = fwd.body
     if (isOurs(from, own)) return { ignored: 'own-address' }
+    // She forwarded one of our own systems' notices: still not a client.
+    if (isSystemSender(from)) return { ignored: 'system-sender' }
   } else {
     // A client replying to Lacey's forwarded copy of something: still unwrap.
     const fwd = unwrapForward(text)
@@ -352,7 +420,8 @@ export function readArtistReply(mail: ReceivedEmail): ArtistReply | null {
   if (isAutomated(mail)) return null
   if (!artistMailboxes().has(bareAddress(mail.from))) return null
   const own = ownAddresses()
-  const clients = recipients(mail).filter((a) => !isOurs(a, own))
+  // One of our own systems is never the client she was writing to.
+  const clients = recipients(mail).filter((a) => !isOurs(a, own) && !isSystemSender(a))
   if (!clients.length) return null
   return {
     externalId: `resend:${mail.id}`,
@@ -369,6 +438,10 @@ export async function handleInboundEmail(db: SupabaseClient, emailId: string): P
   if (reply) return recordArtistReply(db, reply)
   const attachments = await listAttachments(emailId)
   const normalized = normalizeEmail(mail, attachments)
-  if ('ignored' in normalized) return { outcome: 'ignored', reason: normalized.ignored }
+  if ('ignored' in normalized) {
+    // Ids and the reason only: who wrote and what they said stay out of the log.
+    console.log(`inbound email ${emailId}: ignored (${normalized.ignored})`)
+    return { outcome: 'ignored', reason: normalized.ignored }
+  }
   return ingest(db, normalized)
 }

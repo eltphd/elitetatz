@@ -1,12 +1,31 @@
 import { Eye, ArrowRight, Hourglass, CheckCircle2, ExternalLink } from 'lucide-react'
-import { clientSaw, standing, whenWords, type StandingLead, type StandingMessage } from '@/lib/standing'
+import { clientSaw, standing, whenWords, type HandledNote, type StandingLead, type StandingMessage } from '@/lib/standing'
+import { CAN_BE_HANDLED } from '@/lib/handled'
+import { HandledButton } from './HandledButton'
 
 // The two things a card says before it offers anything to tap: where this
 // stands (what already happened, whose move it is), and what the client has
 // been sent. Server components; nothing here sends anything.
 
-export function StandingBanner({ lead, thread, first }: { lead: StandingLead; thread: StandingMessage[]; first: string }) {
-  const s = standing(lead, thread, first)
+export function StandingBanner({
+  lead,
+  thread,
+  first,
+  handled = null,
+  matchId,
+  demo = false,
+}: {
+  lead: StandingLead
+  thread: StandingMessage[]
+  first: string
+  /** Her note saying she dealt with this somewhere else, when there is one. */
+  handled?: HandledNote | null
+  /** With a lead id, a card that is her move offers "I already handled this". */
+  matchId?: string
+  demo?: boolean
+}) {
+  const s = standing(lead, thread, first, undefined, handled)
+  const canMark = Boolean(matchId) && s.whose === 'you' && CAN_BE_HANDLED.includes(lead.status)
   const tone =
     s.whose === 'you' ? 'border-[#c9a84c]/40 bg-[#c9a84c]/10'
     : s.whose === 'them' ? 'border-green-800/40 bg-green-900/15'
@@ -25,6 +44,7 @@ export function StandingBanner({ lead, thread, first }: { lead: StandingLead; th
           <span className="text-[#8a8a8a]">{s.said.who === 'you' ? 'You said: ' : `${first} said: `}</span>{s.said.text}
         </p>
       )}
+      {canMark && <HandledButton matchId={matchId as string} first={first} demo={demo} />}
     </div>
   )
 }

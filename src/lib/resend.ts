@@ -26,6 +26,17 @@ export interface SendResult {
   error?: string
 }
 
+/**
+ * One line, no control characters, a sane length. Resend refuses a subject
+ * with a line break (422), and a subject built from a client's own words can
+ * carry one: on Nov 11 and 13 2026 two reminders to the artist failed that
+ * way. Cleaned here so no caller can send one.
+ */
+export function cleanSubject(subject: string): string {
+  const one = String(subject ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return one.length > 200 ? `${one.slice(0, 199).trimEnd()}…` : one
+}
+
 export async function sendEmailDetailed(args: SendEmailArgs): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { ok: false, error: 'no-key: RESEND_API_KEY is not set' }
@@ -43,7 +54,7 @@ export async function sendEmailDetailed(args: SendEmailArgs): Promise<SendResult
   const body = JSON.stringify({
     from,
     to: args.to,
-    subject: args.subject,
+    subject: cleanSubject(args.subject),
     html: args.html,
     text: args.text,
     reply_to: args.replyTo === null ? undefined : (args.replyTo ?? ARTIST_CONFIG.email),

@@ -1,44 +1,58 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notifyArtist, notifyClient } from '@/lib/notify'
-import { inquiryUrl, appUrl } from '@/lib/tokens'
+import { inquiryUrl, appUrl, handledUrl } from '@/lib/tokens'
 import { depositLinkFor } from '@/lib/deposit'
 import { chatwootReply } from '@/lib/inbound/chatwoot'
 import { postFollowup } from '@/lib/slack'
 import { ARTIST_CONFIG } from '@/lib/artists/lacey-rawson'
 import { isProbeBrief } from '@/lib/probe-tag'
+import { handledElsewhere } from '@/lib/handled'
 
-// Hold timers: no client sits in silence without a line that says when they
-// will hear next, and Lacey hears when a lead has waited on her. Run hourly by
+export { handledElsewhere, HANDLED_NOTE } from '@/lib/handled'
+
+// Hold timers: Lacey hears when a lead has waited on her. Run hourly by
 // /api/cron/holds. Pure decision (`dueHolds`) first, then one send per hold per
 // lead, recorded in `hold_events` (migration 016) so a second tick sends nothing.
 //
-//   Hold  State                                        Client                 Lacey
-//   A1    waiting on Lacey 24 h (new, or replied)      none                   one email, reply-to the client (+ text)
-//   A1C   …36 h                                        "still with Lacey"     none
-//   A2    waiting on Lacey 72 h                        "answer by {day}"      nudge + Slack YOUR MOVE
-//   B     Lacey asked, client silent 72 h              "answer when ready"    none
-//   B14   …14 d                                        none                   one line
-//   C     quoted, no deposit 72 h                      "quote good 14 days"   none
-//   C14   …14 d                                        none                   "expired; reopen or let go"
-//   D     deposit in, no date 72 h                     "pick a date"          none
-//   E     date asked, unconfirmed 48 h                 "confirm by {day}"     nudge
+//   Hold  State                                        Client (only if switched on)   Lacey
+//   A1    waiting on Lacey 24 h (new, or replied)      never                          one email, reply-to the client (+ text)
+//   A2    waiting on Lacey 72 h                        never                          nudge + Slack YOUR MOVE
+//   B     Lacey asked, client silent 72 h              "answer when ready"            none
+//   B14   …14 d                                        none                           one line
+//   C     quoted, no deposit 72 h                      "quote good 14 days"           none
+//   C14   …14 d                                        none                           "expired; reopen or let go"
+//   D     deposit in, no date 72 h                     "pick a date"                  none
+//   E     date asked, unconfirmed 48 h                 "confirm by {day}"             nudge
+//
+// THE RULE (Erica, Nov 18 2026): the portal does not write to a client on a
+// timer. It only sees what happens inside it. Lacey answers people by text,
+// by phone, in Messenger and at the shop, and to the portal all of that looks
+// like silence. On Nov 11 and 13 it told a client "still with Lacey" and then
+// "her books are full this week" after she had already sent that client a
+// deposit request. That cannot happen again, so:
+//
+//   - The two "you are still waiting" notes to a client (the old A1C at 36 h
+//     and the client half of A2) are gone. There is no switch for them.
+//   - The other timed client notes (B, C, D, E) are off unless
+//     HOLD_CLIENT_NOTES names them ("C,D"). Each is only true if the portal
+//     has seen everything, which today it has not.
+//   - A lead she has dealt with somewhere else is not timed at all: her own
+//     note on the card, or one tap on "I already handled this" (on the card,
+//     in the reminder, in the digest), stops the reminders until the client
+//     writes again somewhere the portal sees (`handledElsewhere`).
 //
 // Everything is sent only between 9 AM and 8 PM Eastern. A hold whose window
 // opened before the cron existed (an old pending lead) is left alone: the
 // first run after deploy must not write to every stale lead at once.
 //
-// Erica's rule (Nov 9): Lacey never gets two emails about the same thing. So
-// the 24-hour nudge (brief item 9) is A1's email to her, moved up from 36 h:
-// one email per lead, reply-to the client, so answering it from her mail app
-// is the reply. Only her side moved. The client's "still with Lacey" line
-// stays at 36 h under its own key (A1C), because rawsunart.com tells clients
-// they hear within 48 hours and a 24-hour "still waiting" would undercut it.
-// A2 at 72 h stays the single escalation. During the 7 PM digest hour A1 and
-// A2 still write their record and tell the client, but send her nothing: the
-// digest carries the lead in one line instead. The daily probe's inquiry is
-// never a hold: it is not a client.
+// Erica's rule (Nov 9): Lacey never gets two emails about the same thing. A1
+// is her one email about a wait, reply-to the client, so answering it from
+// her mail app is the reply. A2 at 72 h is the single escalation. During the
+// 7 PM digest hour A1 and A2 still write their record but send her nothing:
+// the digest carries the lead in one line instead. The daily probe's inquiry
+// is never a hold: it is not a client.
 
-export type Hold = 'A1' | 'A1C' | 'A2' | 'B' | 'B14' | 'C' | 'C14' | 'D' | 'E'
+export type Hold = 'A1' | 'A2' | 'B' | 'B14' | 'C' | 'C14' | 'D' | 'E'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -49,7 +63,6 @@ export const GRACE = 7 * DAY
 // so an escalation never sends the earlier message after the later one.
 export const WINDOW: Record<Hold, [number, number]> = {
   A1: [24 * HOUR, 72 * HOUR],
-  A1C: [36 * HOUR, 72 * HOUR],
   A2: [72 * HOUR, 72 * HOUR + GRACE],
   B: [72 * HOUR, 14 * DAY],
   B14: [14 * DAY, 14 * DAY + GRACE],
@@ -88,6 +101,13 @@ export interface HoldMessage {
   meta?: Record<string, unknown> | null
 }
 
+/** One of her private notes on a lead (lead_notes, author 'artist'). */
+export interface HoldNote {
+  match_id: string
+  created_at: string
+  body?: string | null
+}
+
 export interface Due {
   hold: Hold
   match: HoldMatch
@@ -114,47 +134,76 @@ function inWindow(hold: Hold, since: number, now: number): boolean {
  * counting system lines) is a client email that reached her directly, or her
  * own reply from her mail app. Whoever answers next can do it there without
  * the portal seeing it, so the portal does not time what it cannot see.
+ *
+ * The same holds for a message she pasted in herself with "Add a lead"
+ * (meta.pasted_by): a Messenger or Instagram DM, a text, a talk at the shop.
+ * The conversation lives where she got it. The portal is not connected to
+ * that place, cannot reach that client, and never sees her answer. On Nov 12
+ * 2026 she pasted a Messenger message in to use the wording helper, and was
+ * then reminded twice and listed nightly about her own pasted note.
  */
 export function inHerMailbox(thread: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'>[]): boolean {
   let lastWord: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'> | null = null
   for (const m of thread) {
     if (m.sender !== 'system' && (!lastWord || ms(m.created_at) >= ms(lastWord.created_at))) lastWord = m
   }
-  return Boolean(lastWord?.meta && (lastWord.meta as { mailbox?: unknown }).mailbox)
+  const meta = (lastWord?.meta ?? null) as { mailbox?: unknown; pasted_by?: unknown } | null
+  return Boolean(meta && (meta.mailbox || meta.pasted_by))
 }
 
 /**
  * When the client started waiting on Lacey, in ms: the inquiry itself while
  * she has not touched it, or their last message when it is newer than her
- * last one. 0 when the ball is not in her court, or when the thread has moved
- * into her mailbox (see inHerMailbox). Shared with the digest, so its
+ * last one. 0 when the ball is not in her court, when the thread has moved
+ * into her mailbox (see inHerMailbox), or when she has noted it as handled
+ * somewhere else (see handledElsewhere). Shared with the digest, so its
  * "waiting on you" list is exactly the leads the A holds would time.
  */
 export function waitingOnArtistSince(
   match: Pick<HoldMatch, 'status' | 'created_at' | 'artist_responded_at'>,
-  thread: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'>[]
+  thread: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'>[],
+  notes: Pick<HoldNote, 'created_at'>[] = []
 ): number {
   if (!WAITING_ON_ARTIST.includes(match.status)) return 0
   if (inHerMailbox(thread)) return 0
+  if (handledElsewhere(thread, notes)) return 0
   let lastArtist = 0
   let lastClient = 0
+  // The newest message that lives outside the portal: in her mailbox, or
+  // pasted in by her. Up to that point the conversation was hers to carry
+  // somewhere else.
+  let lastOutside = 0
   for (const m of thread) {
     const t = ms(m.created_at)
     if (m.sender === 'artist') lastArtist = Math.max(lastArtist, t)
     if (m.sender === 'client') lastClient = Math.max(lastClient, t)
+    const meta = (m.meta ?? null) as { mailbox?: unknown; pasted_by?: unknown } | null
+    if (m.sender !== 'system' && meta && (meta.mailbox || meta.pasted_by)) lastOutside = Math.max(lastOutside, t)
   }
-  const artistActed = lastArtist > 0 || Boolean(match.artist_responded_at)
-  const lastArtistAt = Math.max(lastArtist, ms(match.artist_responded_at))
+  // Her note counts as her having acted, and so does a stretch of the
+  // conversation the portal could not see: when the client writes again
+  // after either, the wait is counted from their new message, not from the
+  // day the inquiry first arrived.
+  let lastNote = 0
+  for (const n of notes) lastNote = Math.max(lastNote, ms(n.created_at))
+  const artistActed = lastArtist > 0 || Boolean(match.artist_responded_at) || lastNote > 0 || lastOutside > 0
+  const lastArtistAt = Math.max(lastArtist, ms(match.artist_responded_at), lastNote, lastOutside)
   return !artistActed ? ms(match.created_at) : lastClient > lastArtistAt ? lastClient : 0
 }
 
 /** Which holds are due for these leads right now. Pure: no I/O. */
-export function dueHolds(matches: HoldMatch[], messages: HoldMessage[], now: number): Due[] {
+export function dueHolds(matches: HoldMatch[], messages: HoldMessage[], now: number, notes: HoldNote[] = []): Due[] {
   const byMatch = new Map<string, HoldMessage[]>()
   for (const m of messages) {
     const list = byMatch.get(m.match_id) ?? []
     list.push(m)
     byMatch.set(m.match_id, list)
+  }
+  const notesBy = new Map<string, HoldNote[]>()
+  for (const n of notes) {
+    const list = notesBy.get(n.match_id) ?? []
+    list.push(n)
+    notesBy.set(n.match_id, list)
   }
   const due: Due[] = []
   const push = (hold: Hold, match: HoldMatch, since: number) => {
@@ -186,16 +235,19 @@ export function dueHolds(matches: HoldMatch[], messages: HoldMessage[], now: num
     // either side writes somewhere the portal does see (the inquiry page, the
     // form, a DM, or her inbox here). Quotes, deposits and dates (C, D, E)
     // are her own taps in the portal and stay timed.
-    const inMailbox = inHerMailbox(thread)
+    //
+    // The same goes for a lead she has noted as handled somewhere else (a
+    // text, a call, Messenger, a deposit request from the shop): the portal
+    // saw none of it, so it times none of it.
+    const inMailbox = inHerMailbox(thread) || Boolean(handledElsewhere(thread, notesBy.get(match.id)))
     if (inMailbox && ['pending', 'info_requested'].includes(match.status)) continue
 
     // A: the client is waiting on Lacey — a new lead she has not touched, or a
     // client message newer than her last one, before any deposit.
     if (WAITING_ON_ARTIST.includes(match.status) && !inMailbox) {
-      const since = waitingOnArtistSince(match, thread)
+      const since = waitingOnArtistSince(match, thread, notesBy.get(match.id))
       if (since) {
         push('A1', match, since)
-        push('A1C', match, since)
         push('A2', match, since)
         continue
       }
@@ -248,10 +300,42 @@ export function easternHour(now: number): number {
   return Number(new Date(now).toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: TZ }))
 }
 
+/**
+ * A client's idea as one short line, for a subject or a list. A form inquiry
+ * stores their whole message as the concept, line breaks included.
+ */
+export function oneLine(text: string | null | undefined, max = 80): string {
+  const one = (text ?? '').replace(/\s+/g, ' ').trim()
+  return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one
+}
+
 /** Client messages go out 9 AM–8 PM Eastern only. */
 export function sendingHours(now: number): boolean {
   const h = easternHour(now)
   return h >= 9 && h < 20
+}
+
+/** The timed client notes that can be switched on. The "still waiting" notes are not among them. */
+const SWITCHABLE: Hold[] = ['B', 'C', 'D', 'E']
+
+/**
+ * Which timed notes to a client are switched on: HOLD_CLIENT_NOTES, a comma
+ * list of B, C, D, E. Unset means none, which is the default on purpose (see
+ * THE RULE at the top of this file).
+ */
+export function clientNotesOn(raw: string | undefined = process.env.HOLD_CLIENT_NOTES): Set<Hold> {
+  const on = new Set<Hold>()
+  for (const part of (raw ?? '').split(',')) {
+    const h = part.trim().toUpperCase() as Hold
+    if (SWITCHABLE.includes(h)) on.add(h)
+  }
+  return on
+}
+
+/** "Already handled it?" and the one-tap link, for the end of a reminder to her. */
+export function handledLine(matchId: string, first: string): string {
+  const url = handledUrl(matchId)
+  return url ? `Already answered ${first} another way (text, call, Messenger, at the shop)? Tap here and the reminders stop:\n${url}` : ''
 }
 
 interface Copy {
@@ -262,11 +346,12 @@ interface Copy {
   note?: string
 }
 
-export function copyFor(due: Due, now: number): Copy {
+/** `tellClient` is true when this hold's client note is switched on; her copy only says "the client was told" when it was. */
+export function copyFor(due: Due, now: number, tellClient = false): Copy {
   const { hold, match } = due
   const since = ms(due.since)
   const name = match.client_name?.trim() || 'there'
-  const concept = match.ai_summary?.trim() || 'your piece'
+  const concept = oneLine(match.ai_summary) || 'your piece'
   const inquiry = inquiryUrl(match.id)
   const dashboard = `${appUrl()}/dashboard`
   const ref = match.id.slice(0, 8)
@@ -276,50 +361,33 @@ export function copyFor(due: Due, now: number): Copy {
   switch (hold) {
     case 'A1': {
       // Her one email about this wait. Reply-to is the client (notifyArtist),
-      // so answering it from her mail app is the reply.
+      // so answering it from her mail app is the reply. Nothing goes to the
+      // client about the wait, now or later.
       const first = match.client_name?.trim().split(' ')[0] || 'the client'
       const email = match.client_email?.trim()
-      const told = now - since >= WINDOW.A1C[0]
-      const clientLine = told
-        ? `${first} is being told it is still with you.`
-        : `Nothing has been sent to ${first}; at 36 hours they are told it is still with you.`
+      const handled = handledLine(match.id, first)
       return {
         artist: {
           subject: `Waiting a day: ${concept}`,
-          text: `${who} wrote ${told ? 'over a day ago' : 'a day ago'} and has not heard back yet.\n\n${
+          text: `${who} wrote a day ago and the portal has not seen an answer.\n\n${
             email
               ? `Reply to this email and it goes straight to ${first} (${email}); that is the whole answer.`
               : `This one came in without an email address; answer from your inbox.`
-          }\nOr from your inbox: ${dashboard}\n\n${clientLine}`,
+          }\nOr from your inbox: ${dashboard}\n\nNothing has been sent to ${first} about the wait, and nothing will be.${handled ? `\n\n${handled}` : ''}`,
           sms: `${who} has waited 24 hours. Reply to the email, or from your inbox: ${dashboard}`,
         },
       }
     }
-    case 'A1C': {
-      // The client's side of the same wait, later: only her nudge moved to 24 h.
-      const day = dayWord(since + 72 * HOUR, now)
-      return {
-        client: {
-          subject: `Still with ${firstName}`,
-          text: `Hey ${name},\n\nYour inquiry (${concept}) is still with ${firstName}. She reads every inquiry herself; you'll hear from her by ${day}.\n\nYour inquiry page: ${inquiry}\n\n${sig}`,
-          sms: `${ARTIST_CONFIG.handle}: your inquiry is still with ${firstName}. She reads every one herself; you'll hear from her by ${day}.`,
-        },
-      }
-    }
     case 'A2': {
-      const day = dayWord(since + 7 * DAY, now)
+      const first = match.client_name?.trim().split(' ')[0] || 'the client'
+      const handled = handledLine(match.id, first)
       return {
-        client: {
-          subject: `${firstName} will answer by ${day}`,
-          text: `Hey ${name},\n\nHer books are full this week; she'll answer about ${concept} by ${day}. Reply here if you'd rather not wait:\n${inquiry}\n\n${sig}`,
-          sms: `${ARTIST_CONFIG.handle}: ${firstName}'s books are full this week; she'll answer by ${day}. Reply here if you'd rather not wait: ${inquiry}`,
-        },
         artist: {
           subject: `Waiting 3 days: ${concept}`,
-          text: `${who} has now waited three days. The client was told you'll answer by ${day}.\n\nOne tap closes it either way:\n${dashboard}`,
-          sms: `${who} has waited 3 days; told they'll hear by ${day}. Reply or pass: ${dashboard}`,
+          text: `${who} wrote three days ago and the portal has not seen an answer. Nothing has been sent to ${first} about the wait. This is the last reminder about it.\n\nReply or pass from your inbox:\n${dashboard}${handled ? `\n\n${handled}` : ''}`,
+          sms: `${who} has waited 3 days. Last reminder. Reply or pass: ${dashboard}`,
         },
-        slack: `Lead ref ${ref} has waited 72 h with no reply from Lacey; the client was told ${day}. YOUR MOVE: text Lacey to reply or pass it from her inbox (${dashboard}), or nothing.`,
+        slack: `Lead ref ${ref} has waited 72 h with no reply from Lacey that the portal can see. Nothing was sent to the client. YOUR MOVE: check with Lacey whether she answered another way; she can reply, pass, or mark it handled from her inbox (${dashboard}).`,
       }
     }
     case 'B':
@@ -377,8 +445,8 @@ export function copyFor(due: Due, now: number): Copy {
         },
         artist: {
           subject: `Date request waiting 2 days: ${concept}`,
-          text: `${who} asked for a date two days ago${match.date_request ? ` ("${match.date_request}")` : ''}. The client was told you'll confirm by ${day}.\n\nConfirm or change it:\n${dashboard}`,
-          sms: `${who} asked for a date 2 days ago; told you'll confirm by ${day}. ${dashboard}`,
+          text: `${who} asked for a date two days ago${match.date_request ? ` ("${match.date_request}")` : ''}.${tellClient ? ` The client was told you'll confirm by ${day}.` : ' Nothing has been sent to them about the wait.'}\n\nConfirm or change it:\n${dashboard}`,
+          sms: `${who} asked for a date 2 days ago${tellClient ? `; told you'll confirm by ${day}` : ''}. ${dashboard}`,
         },
       }
     }
@@ -409,18 +477,29 @@ export async function runHolds(db: SupabaseClient, artistId: string, now = Date.
   if (!matches.length) return { checked: 0, due: 0, sent: [], skipped: null }
   const ids = matches.map((m) => m.id)
 
-  const [{ data: msgs }, { data: events }] = await Promise.all([
+  const [{ data: msgs }, { data: events }, { data: nts }] = await Promise.all([
     db.from('match_messages').select('match_id, sender, body, created_at, meta').in('match_id', ids).order('created_at', { ascending: true }),
     db.from('hold_events').select('match_id, hold').in('match_id', ids),
+    // Her own notes: a note newer than the last word means she handled it elsewhere.
+    db.from('lead_notes').select('match_id, created_at').in('match_id', ids).eq('author', 'artist'),
   ])
   const already = new Set(((events ?? []) as { match_id: string; hold: string }[]).map((e) => `${e.match_id}:${e.hold}`))
 
-  const due = dueHolds(matches, (msgs ?? []) as HoldMessage[], now).filter((d) => !already.has(`${d.match.id}:${d.hold}`))
+  const due = dueHolds(matches, (msgs ?? []) as HoldMessage[], now, (nts ?? []) as HoldNote[]).filter((d) => !already.has(`${d.match.id}:${d.hold}`))
   const sent: HoldRun['sent'] = []
   // In the digest hour the digest is her one email; an A nudge now would pair with it.
   const digestHour = easternHour(now) === DIGEST_HOUR
+  const tell = clientNotesOn()
 
   for (const d of due) {
+    // A timed note to a client goes only when its hold is switched on, and
+    // never for a wait on Lacey (A1, A2 have no client side at all).
+    const tellClient = tell.has(d.hold)
+    const copy = copyFor(d, now, tellClient)
+    if (!tellClient) delete copy.client
+    // Nothing to send and nothing to note: leave no record, so switching the
+    // note on later still finds this hold unsent.
+    if (!copy.client && !copy.artist && !copy.note && !copy.slack) continue
     // The record comes first and is the guard: a duplicate key means another
     // tick got here, and this one sends nothing.
     const { error: evErr } = await db.from('hold_events').insert({ match_id: d.match.id, hold: d.hold })
@@ -428,7 +507,6 @@ export async function runHolds(db: SupabaseClient, artistId: string, now = Date.
       if ((evErr as { code?: string }).code !== '23505') console.error('hold_events insert:', evErr)
       continue
     }
-    const copy = copyFor(d, now)
     try {
       if (copy.client) {
         // The client-visible thread shows what they were told, as the system.
