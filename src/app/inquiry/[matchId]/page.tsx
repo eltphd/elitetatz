@@ -310,7 +310,9 @@ function WhatHappensNext({ depositExternal }: { depositExternal: boolean }) {
     {
       icon: <Hourglass className="w-4 h-4 text-[#c9a84c]" />,
       title: 'You hear within two days',
-      text: 'Usually sooner. If it takes longer, a note lands here and in your email saying exactly when, so you are never left guessing.',
+      // No promise of an automatic "still waiting" note: those were removed on
+      // Nov 18 2026 (src/lib/holds.ts). The portal does not write to a client on a timer.
+      text: `Usually sooner. ${firstName} is in the studio Wednesday to Saturday and answers every inquiry herself.`,
     },
     {
       icon: <Wallet className="w-4 h-4 text-[#c9a84c]" />,
