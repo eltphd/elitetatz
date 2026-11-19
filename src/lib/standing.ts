@@ -15,6 +15,8 @@ export interface StandingMessage {
   channel?: string | null
   /** Set on a message that lives in her own mailbox: 'reply', 'forwarded' or 'delivered'. */
   mailbox?: string | null
+  /** True when she pasted this message in herself with "Add a lead". */
+  pasted?: boolean | null
 }
 
 export interface StandingLead {
@@ -127,6 +129,13 @@ export function standing(lead: StandingLead, thread: StandingMessage[], first: s
   }
   if (a) {
     return { whose: 'them', headline: `You wrote to ${first}. Waiting on them.`, detail: `${whenWords(a.created_at)}. You will get one email when they answer.`, said: { who: 'you', text: a.body } }
+  }
+  if (c?.pasted) {
+    return {
+      whose: 'you',
+      headline: 'You added this one yourself.',
+      detail: `${first}'s message lives where you got it (Messenger, Instagram, a text, the shop), and that is where you answer it. The portal cannot see that conversation, so it will not remind you about this one or send ${first} anything. The wording helper and your notes are here when you want them.`,
+    }
   }
   if (c?.mailbox) {
     return {

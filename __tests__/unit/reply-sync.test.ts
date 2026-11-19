@@ -131,6 +131,13 @@ describe('hold timers and her mailbox', () => {
     // 76 hours of portal silence after her email reply would have been hold B.
     expect(holds([lead({ artist_responded_at: ago(76) })], [m('artist', 76, { mailbox: 'reply' })])).toEqual([])
   })
+  it('a message she pasted in herself with "Add a lead" is never timed: it lives where she got it (Nov 12: a Messenger DM)', () => {
+    const pasted = lead({ channel: 'facebook', client_email: null })
+    expect(holds([pasted], [m('client', 80, { pasted_by: 'artist' })])).toEqual([])
+    expect(holds([lead({ channel: 'facebook', client_email: null, created_at: ago(26) })], [m('client', 26, { pasted_by: 'artist' })])).toEqual([])
+    // If that client later writes somewhere the portal does see, it is timed like any other.
+    expect(holds([pasted], [m('client', 80, { pasted_by: 'artist' }), m('client', 30)])).toEqual(['A1'])
+  })
   it('a lead she forwarded from her own mailbox is never timed: she may have answered there', () => {
     expect(holds([lead({ channel: 'email' })], [m('client', 80, { mailbox: 'forwarded' })])).toEqual([])
     expect(holds([lead({ channel: 'email', created_at: ago(40) })], [m('client', 40, { mailbox: 'delivered' })])).toEqual([])

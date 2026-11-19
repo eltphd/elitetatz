@@ -50,14 +50,25 @@ The third has its own cause: the Resend account also receives mail for woopsi.in
 
 - The woopsi "Hello" lead was set to `cancelled` with an operator note, so the 72-hour reminder due at 9 AM on Nov 19 does not fire. No other lead in the database came from woopsi mail.
 
+## Added Nov 19, after Erica read the open items
+
+**The Facebook lead was never a Facebook connection.** Facebook and Instagram are not connected. On Nov 12 Lacey used "Add a lead", pasted a Messenger message and picked Facebook, to use the wording helper (the printed guide tells her to: "a card you add yourself: walk-in, phone call, IG DM you copy over"). The lead carries `added_by: artist` and the message `pasted_by: artist`. The portal then timed her own pasted note as an unanswered client.
+
+- Rule: a message she pasted in herself lives where she got it. The portal is not connected to that place, cannot reach that client and never sees her answer, so it does not time it, remind her or list it (`inHerMailbox` in `src/lib/holds.ts` now reads `pasted_by` as well as `mailbox`). The card says "You added this one yourself" and explains why it is quiet.
+- If that client later writes somewhere the portal does see, the wait counts from that message, not from the day she pasted the first one. The same correction applies to a thread that started in her mailbox.
+
+**The handled page is now tested in every state** against a stand-in database (`handled-page.test.tsx`): the button for a waiting lead, no button once noted or past answering, the button back when the client writes again, nothing shown for a wrong or borrowed link, and a plain "not available" with no database. Opening the page writes nothing.
+
+**Lacey's printed guide matches.** `elitetatz-for-lacey-print.html` and the PDF: the "Nothing slips" box now shows 24 h and 72 h reminders to her, the handled tap, and that a client is never sent anything about waiting. The rest of the guide is as written on Nov 3 (the Reconnect wording and the "soon" rows are older than today's state).
+
 ## Tests
 
-`handled.test.ts` and `inbound-scope.test.ts` are new; `holds`, `digest`, `reply-sync` and `walkthrough-ui` were updated. Suite: 350 passing, `tsc` and eslint clean. The demo inbox button and the two no-database states of the handled page were checked in a browser. The handled page against real leads was not, because the local environment has no database.
+`handled.test.ts`, `handled-page.test.tsx` and `inbound-scope.test.ts` are new; `holds`, `digest`, `reply-sync` and `walkthrough-ui` were updated. Suite: 364 passing, `tsc` and eslint clean. The demo inbox button and the two no-database states of the handled page were checked in a browser.
 
 ## Still open
 
-- The two real leads are not touched in the database. After deploy the first is quiet on its own (her note counts). The Facebook one stays in "Needs you" with the button, and is never listed in a digest again.
+- After deploy, confirm the route is live: `https://elitetatz.app/handled/x?t=x` should say "This link has expired".
+- The two real leads are not touched in the database. After deploy both are quiet on their own: the first because her note counts, the second because she pasted it in herself.
 - The client who was told "her books are full" has not been written to. That is Lacey's call.
-- `docs/worksessions/elitetatz-for-lacey-print.html` and its PDF still show the 36-hour client note.
-- Texts and Messenger are still invisible to the portal. Dialpad SMS (Nov 4 follow-ups, item 2) and Chatwoot would let it see them; until then the handled tap is the bridge.
+- Texts and Messenger are still invisible to the portal. Dialpad SMS (Nov 4 follow-ups, item 2) and Chatwoot would let it see them; until then the handled tap and the pasted-lead rule are the bridge.
 - Resend still posts woopsi mail to this endpoint. It is now ignored here; scoping the webhook in Resend would stop it at the source.

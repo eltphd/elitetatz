@@ -123,6 +123,14 @@ describe('digest copy', () => {
     expect(again.stillWaiting).toBe(0)
   })
 
+  test('a lead she pasted in herself is her own working card, not someone waiting on her', () => {
+    const leads = [lead({ id: 'fb', client_name: 'Kevin', created_at: ago(30 * H) })]
+    const msgs: HoldMessage[] = [{ match_id: 'fb', sender: 'client', body: 'Very cool!', created_at: ago(30 * H), meta: { pasted_by: 'artist' } }]
+    const s = summarize(leads, msgs, PROBE_OK, NOW, [], RECEIPT)
+    expect(s.unanswered).toHaveLength(0)
+    expect(s.stillWaiting).toBe(0)
+  })
+
   test('the operator’s daily line has counts and the system check, never a client’s name or words', () => {
     const leads = [
       lead({ id: 'm1', client_name: 'Ana Ruiz', created_at: ago(2 * H) }),

@@ -134,13 +134,21 @@ function inWindow(hold: Hold, since: number, now: number): boolean {
  * counting system lines) is a client email that reached her directly, or her
  * own reply from her mail app. Whoever answers next can do it there without
  * the portal seeing it, so the portal does not time what it cannot see.
+ *
+ * The same holds for a message she pasted in herself with "Add a lead"
+ * (meta.pasted_by): a Messenger or Instagram DM, a text, a talk at the shop.
+ * The conversation lives where she got it. The portal is not connected to
+ * that place, cannot reach that client, and never sees her answer. On Nov 12
+ * 2026 she pasted a Messenger message in to use the wording helper, and was
+ * then reminded twice and listed nightly about her own pasted note.
  */
 export function inHerMailbox(thread: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'>[]): boolean {
   let lastWord: Pick<HoldMessage, 'sender' | 'created_at' | 'meta'> | null = null
   for (const m of thread) {
     if (m.sender !== 'system' && (!lastWord || ms(m.created_at) >= ms(lastWord.created_at))) lastWord = m
   }
-  return Boolean(lastWord?.meta && (lastWord.meta as { mailbox?: unknown }).mailbox)
+  const meta = (lastWord?.meta ?? null) as { mailbox?: unknown; pasted_by?: unknown } | null
+  return Boolean(meta && (meta.mailbox || meta.pasted_by))
 }
 
 /**
@@ -161,18 +169,25 @@ export function waitingOnArtistSince(
   if (handledElsewhere(thread, notes)) return 0
   let lastArtist = 0
   let lastClient = 0
+  // The newest message that lives outside the portal: in her mailbox, or
+  // pasted in by her. Up to that point the conversation was hers to carry
+  // somewhere else.
+  let lastOutside = 0
   for (const m of thread) {
     const t = ms(m.created_at)
     if (m.sender === 'artist') lastArtist = Math.max(lastArtist, t)
     if (m.sender === 'client') lastClient = Math.max(lastClient, t)
+    const meta = (m.meta ?? null) as { mailbox?: unknown; pasted_by?: unknown } | null
+    if (m.sender !== 'system' && meta && (meta.mailbox || meta.pasted_by)) lastOutside = Math.max(lastOutside, t)
   }
-  // Her note counts as her having acted: when the client writes again after
-  // it, the wait is counted from their new message, not from the day the
-  // inquiry first arrived.
+  // Her note counts as her having acted, and so does a stretch of the
+  // conversation the portal could not see: when the client writes again
+  // after either, the wait is counted from their new message, not from the
+  // day the inquiry first arrived.
   let lastNote = 0
   for (const n of notes) lastNote = Math.max(lastNote, ms(n.created_at))
-  const artistActed = lastArtist > 0 || Boolean(match.artist_responded_at) || lastNote > 0
-  const lastArtistAt = Math.max(lastArtist, ms(match.artist_responded_at), lastNote)
+  const artistActed = lastArtist > 0 || Boolean(match.artist_responded_at) || lastNote > 0 || lastOutside > 0
+  const lastArtistAt = Math.max(lastArtist, ms(match.artist_responded_at), lastNote, lastOutside)
   return !artistActed ? ms(match.created_at) : lastClient > lastArtistAt ? lastClient : 0
 }
 

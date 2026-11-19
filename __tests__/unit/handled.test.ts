@@ -61,6 +61,12 @@ describe('the card', () => {
     expect(s.headline).toBe('You marked Kevin as handled outside the portal.')
     expect(s.said).toBeUndefined()
   })
+  it('a lead she added herself says so, and that the portal will not time it or write to the client', () => {
+    const s = standing(lead({ channel: 'facebook' }), [{ ...msg('client', 150, 'Very cool!'), pasted: true }], 'Kevin')
+    expect(s.whose).toBe('you')
+    expect(s.headline).toBe('You added this one yourself.')
+    expect(s.detail).toContain('it will not remind you about this one or send Kevin anything')
+  })
   it('without a note the same card is her move', () => {
     expect(standing(lead(), thread, 'Amy').whose).toBe('you')
   })
