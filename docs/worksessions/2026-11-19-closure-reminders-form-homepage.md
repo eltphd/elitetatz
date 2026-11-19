@@ -81,7 +81,7 @@ rawsunart-web has no docs folder, so its build record lives here.
 
 Ordered by what unblocks bookings first. Owners and times marked "suggested" were not set in the session.
 
-1. **Run the Reconnect dry run and settle the schedule.** Erica · 15 minutes · before Lacey taps Approve. The command is in `2026-11-19-p0-reconnect-and-open-items.md`. Her card says "batches of 150 over a few days"; the code sends 40 every 15 minutes, Tuesday to Thursday, 9 to 11 AM Eastern, so all 197 would go in one morning. One of the two has to change. The first possible send is Tuesday, Nov 24, two days before Thanksgiving.
+1. **Run the Reconnect dry run.** Erica · 10 minutes · before Lacey taps Approve. It needs the cron secret from Vercel (woopsi-ink, Environment Variables); the command is in `2026-11-19-p0-reconnect-and-open-items.md`. The other half of this step is done: her card said "batches of 150 over a few days", and on Erica's yes that one sentence in the pending approvals row now says what the code does: 40 at a time on the next Tuesday, Wednesday or Thursday morning, all 197 the same morning. The email itself was not touched. The first possible send is Tuesday, Nov 24, two days before Thanksgiving.
 2. **Send one real inquiry with two photos from rawsunart.com.** Erica · 10 minutes · tell Lacey first so she expects it. This is the only step that proves the photos arrive in her email.
 3. **Check the Google Business Profile name against the new title.** Erica · 5 minutes. The structured data comment says a mismatch costs more than the markup gains.
 4. **Get Lacey's three answers for the "How it works" page.** Lacey, asked by Erica · one short conversation (suggested: this week, in the studio). Consult length and cost, touch-up policy, how watercolor heals. The design is approved and waits only on these.
@@ -114,4 +114,4 @@ Ordered by what unblocks bookings first. Owners and times marked "suggested" wer
 - **Positioning decay.** The homepage now says one thing and the inner pages another. That mismatch is new as of today and reads as unfinished.
 - **Momentum cost.** The approved "How it works" design depreciates while three short answers are outstanding.
 
-**The one action that keeps the loop closed:** run the Reconnect dry run and fix the "batches of 150" line, so Lacey can tap Approve before Tuesday.
+**The one action that keeps the loop closed:** run the Reconnect dry run, so Lacey can tap Approve before Tuesday.
