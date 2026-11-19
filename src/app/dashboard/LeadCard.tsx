@@ -11,6 +11,7 @@ import { LeadWorkspace } from './LeadWorkspace'
 import type { NoteView } from './NotesPanel'
 import { historyLine, NEW_CLIENT, type ClientHistory } from '@/lib/client-history'
 import { artistHasLastWord } from '@/lib/standing'
+import { CAN_BE_HANDLED, handledElsewhere } from '@/lib/handled'
 import { StandingBanner, ClientView } from './LeadStanding'
 
 // One lead, whatever channel it came by: who, what, the files, what is still
@@ -91,8 +92,14 @@ export function clientOwesNothing(thread: ThreadMessage[]): boolean {
   return lastClient <= lastArtist
 }
 
-export function groupOf(lead: Lead, thread: ThreadMessage[]): Group {
+/** Her own notes on a lead; the assistant's lines in the same table do not count. */
+export const ownNotes = (notes: NoteView[]) => notes.filter((n) => n.author === 'artist')
+
+export function groupOf(lead: Lead, thread: ThreadMessage[], notes: NoteView[] = []): Group {
   if (CLOSED.includes(lead.status)) return 'closed'
+  // She answered somewhere the portal cannot see and said so in a note: it is
+  // the client's move until they write here again.
+  if (CAN_BE_HANDLED.includes(lead.status) && handledElsewhere(thread, ownNotes(notes))) return 'waiting'
   // New, unless she has already answered (from here or from her own email)
   // and the client has not written since: then it is their move, not hers.
   if (lead.status === 'pending') return artistHasLastWord(thread) ? 'waiting' : 'needs_you'
@@ -300,7 +307,7 @@ export function LeadCard({
         </div>
       )}
 
-      <StandingBanner lead={standingLead} thread={thread} first={firstWords} />
+      <StandingBanner lead={standingLead} thread={thread} first={firstWords} handled={handledElsewhere(thread, ownNotes(notes))} matchId={lead.id} demo={demo} />
       <ClientView lead={standingLead} thread={thread} first={firstWords} replyVia={replyVia} pageUrl={links ? inquiryUrl(lead.id) : null} demo={demo} />
 
       <LeadWorkspace

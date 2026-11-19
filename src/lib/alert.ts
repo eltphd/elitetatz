@@ -39,3 +39,29 @@ export async function alertOperator(a: Alert): Promise<{ emailed: boolean; slack
     slacked: slack.status === 'fulfilled' && slack.value,
   }
 }
+
+/** Where the operator reads about the pilot: OPERATOR_EMAIL, else ARTIST_NOTIFICATION_CC. */
+export function operatorInbox(): string | null {
+  return process.env.OPERATOR_EMAIL?.trim() || process.env.ARTIST_NOTIFICATION_CC?.trim() || null
+}
+
+/**
+ * A plain report to the operator, not an alert: no alarm prefix, no Slack.
+ * Used for the daily line that used to go to the artist on quiet days. Like
+ * an alert it carries counts and references, never a client's name or words.
+ */
+export async function reportToOperator(a: Alert): Promise<boolean> {
+  const to = operatorInbox()
+  console.log(a.subject)
+  if (!to) return false
+  const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  const result = await sendEmailDetailed({
+    from: ARTIST_CONFIG.fromEmail,
+    to,
+    replyTo: null,
+    subject: a.subject,
+    text: a.text,
+    html: `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.55;white-space:pre-wrap">${esc(a.text)}</div>`,
+  })
+  return result.ok
+}

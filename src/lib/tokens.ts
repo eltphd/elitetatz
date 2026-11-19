@@ -46,6 +46,27 @@ export function verifyMatch(matchId: string, token: string | null | undefined, n
   return safeEqual(sig, sign(`match.${matchId}.${exp}`))
 }
 
+// The "I already handled this" link in a reminder to the artist. It is signed
+// under its own name, so a client's inquiry link can never be turned into
+// one, and it is short-lived: a reminder is acted on within days. The link
+// only opens a page with one button; the button is what records it, so a
+// mail scanner that follows links changes nothing.
+const HANDLED_TTL_DAYS = 30
+
+export function signHandled(matchId: string, now = Date.now()): string {
+  const exp = Math.floor(now / 1000 + HANDLED_TTL_DAYS * 86_400).toString(36)
+  return `${exp}.${sign(`handled.${matchId}.${exp}`)}`
+}
+
+export function verifyHandled(matchId: string, token: string | null | undefined, now = Date.now()): boolean {
+  if (!matchId || !token || !linksConfigured()) return false
+  const [exp, sig] = String(token).split('.')
+  if (!exp || !sig) return false
+  const expSeconds = parseInt(exp, 36)
+  if (!Number.isFinite(expSeconds) || expSeconds * 1000 < now) return false
+  return safeEqual(sig, sign(`handled.${matchId}.${exp}`))
+}
+
 // Proof that a brief came out of our own concierge stream. /api/agent signs the
 // exact brief it parsed from the model; /api/brief refuses anything unsigned,
 // altered, or older than BRIEF_TTL_MS. Without this, anyone could POST a brief
@@ -119,4 +140,10 @@ export function inquiryUrl(matchId: string): string {
 
 export function depositUrl(matchId: string): string {
   return `${appUrl()}/deposit/${matchId}?t=${signMatch(matchId)}`
+}
+
+/** The one-tap "I already handled this" page for a lead; null when links cannot be signed. */
+export function handledUrl(matchId: string): string | null {
+  if (!linksConfigured()) return null
+  return `${appUrl()}/handled/${matchId}?t=${signHandled(matchId)}`
 }

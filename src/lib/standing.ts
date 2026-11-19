@@ -6,6 +6,8 @@
 // already answered, or of what the client had been shown. A card has to say
 // what already happened before it offers anything to tap.
 
+import { CAN_BE_HANDLED, HANDLED_NOTE } from '@/lib/handled'
+
 export interface StandingMessage {
   sender: 'artist' | 'client' | 'system'
   body: string
@@ -55,10 +57,29 @@ export interface Standing {
   said?: { who: 'you' | 'them'; text: string }
 }
 
-export function standing(lead: StandingLead, thread: StandingMessage[], first: string, now = Date.now()): Standing {
+/** Her note that says she dealt with this somewhere else (lib/handled.ts), when there is one. */
+export interface HandledNote {
+  created_at: string
+  body?: string | null
+}
+
+function handledStanding(first: string, note: HandledNote): Standing {
+  const own = note.body?.trim() && note.body.trim() !== HANDLED_NOTE ? note.body.trim() : ''
+  return {
+    whose: 'them',
+    headline: own ? 'You noted this one as handled.' : `You marked ${first} as handled outside the portal.`,
+    detail: `${whenWords(note.created_at)}. No reminders will go out about it, and nothing is sent to ${first} about waiting. If ${first} writes again here, it comes back to "Needs you". Delete the note to undo.`,
+    ...(own ? { said: { who: 'you' as const, text: own } } : {}),
+  }
+}
+
+export function standing(lead: StandingLead, thread: StandingMessage[], first: string, now = Date.now(), handled: HandledNote | null = null): Standing {
   const a = lastOf(thread, 'artist')
   const c = lastOf(thread, 'client')
   const clientNewer = Boolean(c) && (!a || ms(c!.created_at) > ms(a.created_at))
+  // She dealt with it by text, phone, Messenger or at the shop and said so in
+  // a note. Only where the portal would otherwise call it her move.
+  const noted = handled && CAN_BE_HANDLED.includes(lead.status) ? handled : null
 
   switch (lead.status) {
     case 'rejected':
@@ -82,6 +103,7 @@ export function standing(lead: StandingLead, thread: StandingMessage[], first: s
         ? { whose: 'you', headline: `${first} paid the deposit and asked for a date.`, detail: `They asked for: ${lead.date_request}. Confirm it or pick another below.` }
         : { whose: 'them', headline: 'The deposit is in.', detail: `${first} was asked to pick a date on their page. You can also set one below.` }
     case 'accepted':
+      if (clientNewer && noted) return handledStanding(first, noted)
       if (clientNewer) return { whose: 'you', headline: `${first} wrote back after your quote.`, detail: `${whenWords(c!.created_at)}. Your move.`, said: { who: 'them', text: c!.body } }
       return {
         whose: 'them',
@@ -91,6 +113,7 @@ export function standing(lead: StandingLead, thread: StandingMessage[], first: s
   }
 
   // pending or info_requested: the conversation before a price.
+  if (noted) return handledStanding(first, noted)
   if (clientNewer && a) {
     return { whose: 'you', headline: `${first} wrote back.`, detail: `${whenWords(c!.created_at)}. Your move.`, said: { who: 'them', text: c!.body } }
   }

@@ -80,11 +80,11 @@ export default async function DashboardPage() {
   const walkthrough = walkthroughState({ leadCount: leads.length, dismissedAt })
 
   const groups: Record<Group, Lead[]> = { needs_you: [], waiting: [], booked: [], closed: [] }
-  for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [])].push(lead)
+  for (const lead of leads) groups[groupOf(lead, threads.get(lead.id) ?? [], notes.get(lead.id) ?? [])].push(lead)
 
   const sections: { key: Group; title: string; hint?: string; pulse?: boolean }[] = [
     { key: 'needs_you', title: 'Needs you', hint: 'New inquiries and client replies', pulse: true },
-    { key: 'waiting', title: 'Waiting on client', hint: 'You answered, asked or quoted' },
+    { key: 'waiting', title: 'Waiting on client', hint: 'You answered, asked, quoted or handled it elsewhere' },
     { key: 'booked', title: 'Booked', hint: 'Deposit in' },
     { key: 'closed', title: 'Closed' },
   ]

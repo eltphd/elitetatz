@@ -1,11 +1,16 @@
 import { artistContext } from '@/lib/artist-session'
+import { HANDLED_NOTE } from '@/lib/handled'
 
 // Private notes on a lead. The artist's own words to herself: never shown to
 // the client, never sent anywhere. The assistant's questions and answers land
 // in the same table (author 'assistant') from /api/dashboard/assistant.
 //
-// POST   { matchId, body }  → one note
-// DELETE { id }             → removes a note on one of her own leads
+// POST   { matchId, body }           → one note
+// POST   { matchId, handled: true }  → the "I already handled this" note
+// DELETE { id }                      → removes a note on one of her own leads
+//
+// Her newest note on a lead, while nobody has written since, is what tells the
+// timers and the digest she dealt with it somewhere else (lib/handled.ts).
 
 const str = (v: unknown) => (v == null ? '' : String(v)).trim()
 
@@ -17,7 +22,7 @@ export async function POST(req: Request) {
   let payload: Record<string, unknown>
   try { payload = await req.json() } catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }) }
   const matchId = str(payload.matchId)
-  const body = str(payload.body).slice(0, 4000)
+  const body = payload.handled === true ? HANDLED_NOTE : str(payload.body).slice(0, 4000)
   if (!matchId) return Response.json({ error: 'matchId required' }, { status: 400 })
   if (!body) return Response.json({ error: 'Write something first' }, { status: 400 })
 
