@@ -181,6 +181,7 @@ export async function POST(req: Request) {
     if (dmThread) await chatwootReply(dmThread, `${threadBody}\n\nYour inquiry page: ${inquiry}`)
     if (action === 'review_request') {
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `Thank you from ${firstName}`,
@@ -198,6 +199,7 @@ ${reviewUrl}
       const { url: deposit, external } = depositLinkFor(matchId)
       const quote = money(priceCents)
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `${firstName} accepted your piece — ${quote}`,
@@ -220,6 +222,7 @@ ${inquiry}
     } else if (action === 'confirm_date') {
       const when = fmtWhen(updates.appointment_at as string)
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `${match.status === 'booked' ? 'Rescheduled' : 'Confirmed'}: ${when} with ${firstName}`,
@@ -237,6 +240,7 @@ Your inquiry page: ${inquiry}
       })
     } else if (action === 'deposit_received') {
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `Deposit received — ${concept}`,
@@ -252,6 +256,7 @@ The deposit comes off your final price. The balance is paid at the studio.
       })
     } else if (action === 'more_info') {
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `${firstName} has a question about your piece`,
@@ -269,6 +274,7 @@ ${inquiry}
       })
     } else {
       await notifyClient({
+        sentByArtist: true, // Lacey pressed send in her signed-in inbox
         email: match.client_email,
         phone: match.client_phone,
         subject: `About your inquiry with ${firstName}`,

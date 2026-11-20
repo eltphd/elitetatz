@@ -51,6 +51,7 @@ export async function POST(req: Request) {
     }
     if (match.client_email || match.client_phone) delivered = delivered.concat([match.client_email ? 'email' : '', match.client_phone ? 'sms' : ''].filter(Boolean))
     await notifyClient({
+      sentByArtist: true, // Lacey pressed send in her signed-in inbox
       email: match.client_email,
       phone: match.client_phone,
       subject: `Message from ${firstName} about your piece`,
