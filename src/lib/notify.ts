@@ -209,12 +209,22 @@ async function logDelivery(a: {
   }
 }
 
+// THE RULE (Erica and Lacey, Nov 20 2026): nothing goes out on Lacey's number
+// unless she sent it. A text to a client leaves only when `sentByArtist` is
+// true, which only the two routes behind her signed-in inbox pass (her Reply,
+// and her Accept / More info / Pass buttons). Every automatic path (the
+// inquiry confirmation, the rawsunart.com form, the deposit receipt, the hold
+// timers) still emails as before but can never text a client, whatever
+// Dialpad keys are set. Keep it that way: do not pass `sentByArtist` from a
+// timer, a webhook or a public route.
 export async function notifyClient(args: {
   email?: string | null
   phone?: string | null
   subject: string
   text: string
   sms?: string
+  /** True only when Lacey herself pressed send in her signed-in inbox. */
+  sentByArtist?: boolean
 }) {
   if (args.email) {
     await sendEmailDetailed({
@@ -227,7 +237,7 @@ export async function notifyClient(args: {
     })
   }
   const to = toE164(args.phone)
-  if (args.sms && to) await sendSms({ to, text: args.sms })
+  if (args.sms && to && args.sentByArtist === true) await sendSms({ to, text: args.sms })
 }
 
 function maskEmail(to: string): string {
